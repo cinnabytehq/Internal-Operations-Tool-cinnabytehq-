@@ -1,0 +1,50 @@
+---
+/**
+ * Surface container with an optional header.
+ * Slots: default (body), "actions" (header right side).
+ */
+import type { HTMLAttributes } from 'astro/types';
+import { cn } from '@/lib/utils';
+
+interface Props extends Omit<HTMLAttributes<'section'>, 'class'> {
+  title?: string;
+  description?: string;
+  /** Remove body padding (for lists and tables that run edge to edge) */
+  flush?: boolean;
+  class?: string;
+  bodyClass?: string;
+}
+
+const { title, description, flush = false, class: className, bodyClass, ...rest } = Astro.props;
+const headingId = title ? `card-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined;
+const hasActions = Astro.slots.has('actions');
+---
+
+<section
+  class={cn('flex min-w-0 flex-col rounded-card border border-line bg-surface shadow-card', className)}
+  aria-labelledby={headingId}
+  {...rest}
+>
+  {
+    (title || hasActions) && (
+      <header class="flex min-h-13 items-center justify-between gap-4 px-5 pt-3 pb-2">
+        <div class="min-w-0">
+          {title && (
+            <h2 id={headingId} class="text-sm font-semibold tracking-tight text-fg">
+              {title}
+            </h2>
+          )}
+          {description && <p class="mt-0.5 text-[13px] text-fg-muted">{description}</p>}
+        </div>
+        {hasActions && (
+          <div class="flex shrink-0 items-center gap-1">
+            <slot name="actions" />
+          </div>
+        )}
+      </header>
+    )
+  }
+  <div class={cn('flex-1', !flush && 'px-5 pb-5', bodyClass)}>
+    <slot />
+  </div>
+</section>

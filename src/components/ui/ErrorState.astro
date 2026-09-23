@@ -1,0 +1,41 @@
+---
+/**
+ * Reusable error UI. "Try again" reloads the current page (or, inside a
+ * server island, the whole page — which re-fetches the island).
+ */
+import TriangleAlert from '@lucide/astro/icons/triangle-alert';
+import RotateCcw from '@lucide/astro/icons/rotate-ccw';
+import { cn } from '@/lib/utils';
+import Button from './Button.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  compact?: boolean;
+  class?: string;
+}
+
+const {
+  title = 'Something went wrong',
+  description = "We couldn't load this information.",
+  compact = false,
+  class: className,
+} = Astro.props;
+---
+
+<div
+  role="alert"
+  class={cn('flex flex-col items-center justify-center text-center', compact ? 'px-4 py-8' : 'px-6 py-14', className)}
+>
+  <div
+    class="mb-4 flex size-10 items-center justify-center rounded-lg border border-line bg-danger-soft text-danger-ink [&_svg]:size-[18px]"
+  >
+    <TriangleAlert aria-hidden="true" />
+  </div>
+  <p class="text-sm font-semibold text-fg">{title}</p>
+  <p class="mt-1 max-w-sm text-[13px] leading-relaxed text-fg-muted">{description}</p>
+  <Button size="sm" class="mt-5" data-retry>
+    <RotateCcw class="size-3.5" aria-hidden="true" />
+    Try again
+  </Button>
+</div>

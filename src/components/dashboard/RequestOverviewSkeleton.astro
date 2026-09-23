@@ -1,0 +1,24 @@
+---
+import ListSkeleton from '@/components/ui/ListSkeleton.astro';
+import Skeleton from '@/components/ui/Skeleton.astro';
+---
+
+<div role="status" aria-busy="true">
+  <span class="sr-only">Loading request overview…</span>
+  <Skeleton class="-mt-2 mb-4 h-3.5 w-32" />
+  <Skeleton class="h-2.5 w-full rounded-full" />
+  <div class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+    {
+      Array.from({ length: 4 }, () => (
+        <div class="space-y-2">
+          <Skeleton class="h-3 w-20" />
+          <Skeleton class="h-5 w-10" />
+        </div>
+      ))
+    }
+  </div>
+  <div class="mt-5 border-t border-line pt-4">
+    <Skeleton class="h-3 w-24" />
+    <ListSkeleton rows={4} variant="request" class="mt-1.5" />
+  </div>
+</div>

@@ -1,0 +1,58 @@
+---
+/**
+ * Application frame: sidebar, top bar, main content and the global
+ * overlays (create-request dialog, command palette, toasts, shortcuts).
+ */
+import BaseLayout from './BaseLayout.astro';
+import Sidebar from '@/components/layout/Sidebar.astro';
+import Topbar from '@/components/layout/Topbar.astro';
+import CommandPalette from '@/components/layout/CommandPalette.astro';
+import ShortcutsDialog from '@/components/layout/ShortcutsDialog.astro';
+import Toaster from '@/components/layout/Toaster.astro';
+import CreateRequestDialog from '@/components/requests/CreateRequestDialog.astro';
+import type { Crumb } from '@/components/layout/navigation';
+import { getNotifications } from '@/services/activity';
+import { getUsers } from '@/services/users';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  title: string;
+  breadcrumbs?: Crumb[];
+  /** Constrain content width (default) or let it use the full width */
+  width?: 'default' | 'narrow' | 'full';
+}
+
+const { title, breadcrumbs = [{ label: title }], width = 'default' } = Astro.props;
+const { user } = Astro.locals;
+const [users, notifications] = await Promise.all([getUsers(), getNotifications()]);
+
+const widths = { default: 'max-w-[1240px]', narrow: 'max-w-4xl', full: 'max-w-none' };
+---
+
+<BaseLayout title={title}>
+  <a
+    href="#main"
+    class="sr-only z-[70] rounded-md bg-surface px-3 py-2 text-sm font-medium shadow-pop focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+    >Skip to content</a
+  >
+  <div class="flex min-h-dvh">
+    <Sidebar user={user} pathname={Astro.url.pathname} />
+    <div class="flex min-w-0 flex-1 flex-col">
+      <Topbar user={user} breadcrumbs={breadcrumbs} notifications={notifications} />
+      <main id="main" tabindex="-1" class="flex-1 outline-none">
+        <div class={cn('mx-auto w-full px-4 pt-6 pb-16 sm:px-6 lg:px-8 lg:pt-8', widths[width])}>
+          <slot />
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <CreateRequestDialog users={users} />
+  <CommandPalette />
+  <ShortcutsDialog />
+  <Toaster />
+</BaseLayout>
+
+<script>
+  import '@/scripts/app';
+</script>

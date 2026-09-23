@@ -1,0 +1,23 @@
+---
+/**
+ * A settings group: heading + description on the left (desktop),
+ * controls in a card on the right.
+ */
+interface Props {
+  id: string;
+  title: string;
+  description: string;
+}
+
+const { id, title, description } = Astro.props;
+---
+
+<section id={id} aria-labelledby={`${id}-heading`} class="scroll-mt-24 border-t border-line py-8 first:border-t-0 first:pt-0">
+  <div class="mb-4">
+    <h2 id={`${id}-heading`} class="text-base font-semibold tracking-tight text-fg">{title}</h2>
+    <p class="mt-1 text-[13px] text-fg-muted">{description}</p>
+  </div>
+  <div class="rounded-card border border-line bg-surface shadow-card">
+    <slot />
+  </div>
+</section>

@@ -1,0 +1,43 @@
+---
+/**
+ * One sentence describing an activity event:
+ *   "Sarah Chen approved Onboarding kits for October hires"
+ */
+import type { ActivityWithActor } from '@/types';
+import { ACTIVITY_VERBS, ENTITY_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  event: ActivityWithActor;
+  /** Drop the actor's name when an avatar already identifies them */
+  hideActor?: boolean;
+  class?: string;
+}
+
+const { event, hideActor = false, class: className } = Astro.props;
+const entityWord = ENTITY_META[event.entityType].label.toLowerCase();
+const showEntityWord = event.type === 'created' || event.type === 'deleted';
+---
+
+<p class={cn('text-[13px] leading-5 text-fg-muted', className)}>
+  {!hideActor && <span class="font-medium text-fg">{event.actor.name}</span>}
+  {' '}{ACTIVITY_VERBS[event.type]}{showEntityWord && ` ${entityWord}`}{' '}
+  {
+    event.href ? (
+      <a href={event.href} class="font-medium text-fg decoration-line-strong underline-offset-2 hover:underline">
+        {event.entityTitle}
+      </a>
+    ) : (
+      <span class={cn('font-medium text-fg', event.type === 'deleted' && 'line-through decoration-fg-subtle')}>
+        {event.entityTitle}
+      </span>
+    )
+  }
+  {
+    event.type === 'assigned' && event.target && (
+      <>
+        {' '}to <span class="font-medium text-fg">{event.target.name}</span>
+      </>
+    )
+  }
+</p>

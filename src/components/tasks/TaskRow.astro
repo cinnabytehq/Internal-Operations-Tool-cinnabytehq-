@@ -1,0 +1,227 @@
+---
+/**
+ * One task. Two layouts:
+ *   - "full"    (Tasks page, project pages): checkbox, title, project,
+ *               priority, assignee, due date, status menu, details
+ *   - "compact" (Overview): checkbox, title, priority, due date
+ *
+ * The row's `data-status` drives its appearance (and the matching
+ * [data-status-label] is shown), so src/scripts/tasks.ts can update a row
+ * optimistically without re-rendering it.
+ */
+import type { TaskWithRelations } from '@/types';
+import Check from '@lucide/astro/icons/check';
+import ChevronDown from '@lucide/astro/icons/chevron-down';
+import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import Inbox from '@lucide/astro/icons/inbox';
+import Avatar from '@/components/ui/Avatar.astro';
+import Menu from '@/components/ui/Menu.astro';
+import MenuItem from '@/components/ui/MenuItem.astro';
+import MenuLabel from '@/components/ui/MenuLabel.astro';
+import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import PriorityLabel from '@/components/requests/PriorityLabel.astro';
+import TaskStatusLabel from './TaskStatusLabel.astro';
+import { describeDue } from '@/lib/dates';
+import { TASK_STATUSES, TASK_STATUS_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+import { taskSearchText } from '@/services/tasks';
+
+interface Props {
+  task: TaskWithRelations;
+  timeZone: string;
+  variant?: 'full' | 'compact';
+  /** Hide the project column (on a project's own page) */
+  hideProject?: boolean;
+  /** Initially filtered out by the list search */
+  hidden?: boolean;
+}
+
+const { task, timeZone, variant = 'full', hideProject = false, hidden = false } = Astro.props;
+const due = describeDue(task.dueDate, timeZone, task.status === 'done');
+const dueClass = {
+  overdue: 'text-danger-ink',
+  soon: 'text-warning-ink',
+  normal: 'text-fg-muted',
+  done: 'text-fg-subtle',
+}[due.tone];
+const menuId = `task-status-${task.id}`;
+const detailsId = `task-details-${task.id}`;
+const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progress', done: 'text-status-done' };
+---
+
+<li
+  id={variant === 'full' ? task.id : undefined}
+  data-highlight
+  data-task-row={task.id}
+  data-status={task.status}
+  data-filter-item
+  data-filter-text={taskSearchText(task)}
+  hidden={hidden}
+  class="group/task border-b border-line last:border-b-0"
+>
+  <div
+    class={cn(
+      'flex items-center gap-3',
+      variant === 'full' ? 'min-h-12 px-4 py-2.5 sm:px-5' : 'min-h-11 py-2',
+    )}
+  >
+    <label class="relative -m-1.5 flex shrink-0 p-1.5">
+      <input
+        type="checkbox"
+        data-task-toggle
+        checked={task.status === 'done'}
+        class="peer absolute inset-0 z-10 cursor-pointer opacity-0"
+        aria-label={`Mark “${task.title}” as complete`}
+      />
+      <span
+        class="flex size-[18px] items-center justify-center rounded-[5px] border border-line-strong bg-surface transition-colors duration-150 peer-checked:border-accent peer-checked:bg-accent peer-hover:border-accent peer-focus-visible:ring-3 peer-focus-visible:ring-ring pointer-coarse:size-6"
+        aria-hidden="true"
+      >
+      </span>
+      <Check
+        class="pointer-events-none absolute top-1/2 left-1/2 size-3 -translate-1/2 scale-75 text-accent-fg opacity-0 transition-[opacity,transform] duration-150 peer-checked:scale-100 peer-checked:opacity-100"
+        stroke-width={3}
+        aria-hidden="true"
+      />
+    </label>
+
+    <div class="min-w-0 flex-1">
+      <p
+        class="truncate text-[13px] font-medium text-fg transition-colors group-data-[status=done]/task:text-fg-subtle group-data-[status=done]/task:line-through"
+      >
+        {task.title}
+      </p>
+      {
+        (variant === 'compact' || !hideProject) && task.project && (
+          <p class={cn('mt-0.5 truncate text-xs text-fg-subtle', variant === 'full' && 'lg:hidden')}>
+            {task.project.name}
+          </p>
+        )
+      }
+      {
+        variant === 'full' && (
+          <div class="mt-1 flex items-center gap-3 text-xs md:hidden">
+            <PriorityLabel priority={task.priority} class="text-xs" />
+            <span class={dueClass}>{due.label}</span>
+          </div>
+        )
+      }
+    </div>
+
+    {
+      variant === 'full' && !hideProject && (
+        <span class="hidden w-40 shrink-0 truncate lg:block">
+          {task.project && (
+            <a
+              href={`/projects/${task.project.id}`}
+              class="inline-flex max-w-full items-center gap-1.5 truncate text-xs text-fg-muted hover:text-fg"
+            >
+              <FolderKanban class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
+              <span class="truncate">{task.project.name}</span>
+            </a>
+          )}
+        </span>
+      )
+    }
+
+    <PriorityLabel
+      priority={task.priority}
+      iconOnly={variant === 'compact'}
+      class={cn('shrink-0', variant === 'full' && 'w-20 max-md:hidden')}
+    />
+
+    {variant === 'full' && <Avatar user={task.assignee} labelled class="max-sm:hidden" />}
+
+    <span
+      class={cn(
+        'shrink-0 text-right text-xs whitespace-nowrap',
+        dueClass,
+        variant === 'full' ? 'hidden w-28 md:block' : 'w-24',
+      )}
+    >
+      <time datetime={task.dueDate}>{due.label}</time>
+    </span>
+
+    {
+      variant === 'full' && (
+        <>
+          <button
+            type="button"
+            popovertarget={menuId}
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-label={`Change status of “${task.title}”`}
+            class="hidden h-7 w-32 shrink-0 items-center justify-between gap-1 rounded-md px-2 text-fg transition-colors hover:bg-subtle sm:inline-flex"
+          >
+            {TASK_STATUSES.map((status) => (
+              <span data-status-label={status} hidden={status !== task.status} class="inline-flex">
+                <TaskStatusLabel status={status} />
+              </span>
+            ))}
+            <ChevronDown class="size-3.5 text-fg-subtle" aria-hidden="true" />
+          </button>
+          <Menu id={menuId} label="Task status" class="min-w-44">
+            <MenuLabel>Status</MenuLabel>
+            {TASK_STATUSES.map((status) => (
+              <MenuItem data-task-status={status} data-task-id={task.id} checked={task.status === status}>
+                <PipelineIcon slot="icon" step={TASK_STATUS_META[status].step} total={2} class={statusColors[status]} />
+                {TASK_STATUS_META[status].label}
+              </MenuItem>
+            ))}
+          </Menu>
+          <button
+            type="button"
+            data-task-expand
+            aria-expanded="false"
+            aria-controls={detailsId}
+            aria-label={`Show details for “${task.title}”`}
+            class="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-subtle hover:text-fg aria-expanded:rotate-180 pointer-coarse:size-9"
+          >
+            <ChevronDown class="size-4" aria-hidden="true" />
+          </button>
+        </>
+      )
+    }
+  </div>
+
+  {
+    variant === 'full' && (
+      <div id={detailsId} hidden class="px-4 pb-4 pl-[3.25rem] sm:px-5 sm:pl-[3.5rem]">
+        <div class="rounded-lg border border-line bg-subtle/60 p-3.5">
+          {task.description && <p class="text-[13px] leading-relaxed text-fg">{task.description}</p>}
+          <dl class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+            <div class="flex items-center gap-1.5">
+              <dt class="text-fg-subtle">Assignee</dt>
+              <dd class="font-medium text-fg">{task.assignee.name}</dd>
+            </div>
+            <div class="flex items-center gap-1.5 sm:hidden">
+              <dt class="text-fg-subtle">Status</dt>
+              <dd class="font-medium text-fg">
+                {TASK_STATUSES.map((status) => (
+                  <span data-status-label={status} hidden={status !== task.status}>
+                    {TASK_STATUS_META[status].label}
+                  </span>
+                ))}
+              </dd>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <dt class="text-fg-subtle">ID</dt>
+              <dd class="font-mono text-fg-muted">{task.id}</dd>
+            </div>
+            {task.request && (
+              <div class="flex items-center gap-1.5">
+                <dt class="text-fg-subtle">From request</dt>
+                <dd>
+                  <a href={`/requests/${task.request.id}`} class="inline-flex items-center gap-1 font-medium text-accent-ink hover:underline">
+                    <Inbox class="size-3.5" aria-hidden="true" />
+                    {task.request.id} · {task.request.title}
+                  </a>
+                </dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      </div>
+    )
+  }
+</li>

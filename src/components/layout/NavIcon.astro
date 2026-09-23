@@ -1,0 +1,27 @@
+---
+import LayoutGrid from '@lucide/astro/icons/layout-grid';
+import Inbox from '@lucide/astro/icons/inbox';
+import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import SquareCheckBig from '@lucide/astro/icons/square-check-big';
+import Activity from '@lucide/astro/icons/activity';
+import Settings from '@lucide/astro/icons/settings';
+import type { NavIcon } from './navigation';
+
+interface Props {
+  name: NavIcon;
+  class?: string;
+}
+
+const { name, class: className = 'size-4' } = Astro.props;
+const icons = {
+  overview: LayoutGrid,
+  requests: Inbox,
+  projects: FolderKanban,
+  tasks: SquareCheckBig,
+  activity: Activity,
+  settings: Settings,
+};
+const Icon = icons[name];
+---
+
+<Icon class={className} aria-hidden="true" />

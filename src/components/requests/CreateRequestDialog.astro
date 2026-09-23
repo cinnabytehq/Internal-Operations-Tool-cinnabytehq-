@@ -1,0 +1,117 @@
+---
+/**
+ * "New request" form in a modal. Lives in the app layout so it can be
+ * opened from anywhere (buttons with data-dialog-open="create-request",
+ * the command palette, or the "C" shortcut).
+ * Behaviour: src/scripts/createRequest.ts → actions.requests.create.
+ */
+import type { User } from '@/types';
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import Button from '@/components/ui/Button.astro';
+import Dialog from '@/components/ui/Dialog.astro';
+import Field from '@/components/ui/Field.astro';
+import Input from '@/components/ui/Input.astro';
+import PriorityIcon from '@/components/ui/PriorityIcon.astro';
+import Select from '@/components/ui/Select.astro';
+import Textarea from '@/components/ui/Textarea.astro';
+import { CATEGORY_META, PRIORITIES, PRIORITY_META, REQUEST_CATEGORIES } from '@/lib/meta';
+
+interface Props {
+  users: User[];
+}
+
+const { users } = Astro.props;
+---
+
+<Dialog
+  id="create-request"
+  title="New request"
+  description="Tell the team what you need. You can follow its progress from the Requests page."
+  size="md"
+>
+  <form id="create-request-form" novalidate class="flex flex-col gap-5">
+    <Field label="Title" for="request-title">
+      <Input
+        id="request-title"
+        name="title"
+        placeholder="e.g. Laptop replacement for design work"
+        maxlength="120"
+        required
+        autofocus
+        autocomplete="off"
+        aria-describedby="request-title-error"
+      />
+    </Field>
+
+    <Field label="Description" for="request-description">
+      <span slot="label-extra" class="tabular text-xs text-fg-subtle" data-char-count aria-live="polite">0 / 2000</span>
+      <Textarea
+        id="request-description"
+        name="description"
+        rows="4"
+        maxlength="2000"
+        placeholder="What do you need, why, and by when?"
+        required
+        aria-describedby="request-description-error"
+      />
+    </Field>
+
+    <div class="grid gap-5 sm:grid-cols-2">
+      <Field label="Category" for="request-category">
+        <Select id="request-category" name="category" required aria-describedby="request-category-error request-approval-hint">
+          <option value="" disabled selected>Select a category</option>
+          {
+            REQUEST_CATEGORIES.map((category) => (
+              <option value={category} data-requires-approval={String(CATEGORY_META[category].requiresApproval)}>
+                {CATEGORY_META[category].label}
+              </option>
+            ))
+          }
+        </Select>
+      </Field>
+
+      <Field label="Assignee" for="request-assignee" optional>
+        <Select id="request-assignee" name="assigneeId">
+          <option value="">Unassigned</option>
+          {
+            users.map((user) => (
+              <option value={user.id}>
+                {user.name} · {user.team}
+              </option>
+            ))
+          }
+        </Select>
+      </Field>
+    </div>
+
+    <p
+      id="request-approval-hint"
+      data-approval-hint
+      hidden
+      class="-mt-2 flex items-start gap-2 rounded-md bg-info-soft px-3 py-2 text-[13px] text-info-ink"
+    >
+      <ShieldCheck class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      Requests in this category need an approval before work starts. We'll route it automatically.
+    </p>
+
+    <fieldset>
+      <legend class="mb-1.5 text-[13px] font-medium text-fg">Priority</legend>
+      <div class="grid grid-cols-3 gap-2">
+        {
+          PRIORITIES.map((priority) => (
+            <label class="relative flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-surface text-[13px] font-medium text-fg-muted shadow-xs transition-colors duration-150 hover:border-line-strong has-checked:border-accent has-checked:bg-accent-soft has-checked:text-fg has-focus-visible:ring-3 has-focus-visible:ring-ring pointer-coarse:h-11">
+              <input type="radio" name="priority" value={priority} checked={priority === 'medium'} class="sr-only" />
+              <PriorityIcon priority={priority} />
+              {PRIORITY_META[priority].label}
+            </label>
+          ))
+        }
+      </div>
+    </fieldset>
+  </form>
+
+  <Fragment slot="footer">
+    <Button variant="secondary" data-dialog-close>Cancel</Button>
+    <Button variant="primary" type="submit" form="create-request-form">Create request</Button>
+  </Fragment>
+</Dialog>

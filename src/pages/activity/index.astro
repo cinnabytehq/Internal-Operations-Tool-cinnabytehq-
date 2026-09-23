@@ -1,0 +1,60 @@
+---
+/**
+ * Activity — the workspace audit log, grouped by day.
+ */
+import ActivityIcon from '@lucide/astro/icons/activity';
+import AppLayout from '@/layouts/AppLayout.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import Tabs from '@/components/ui/Tabs.astro';
+import ActivityTimeline from '@/components/activity/ActivityTimeline.astro';
+import { getActivity } from '@/services/activity';
+import type { ActivityWithActor, EntityType } from '@/types';
+
+const types: Array<{ id: EntityType | 'all'; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'request', label: 'Requests' },
+  { id: 'project', label: 'Projects' },
+  { id: 'task', label: 'Tasks' },
+];
+const requested = Astro.url.searchParams.get('type');
+const type = types.find((item) => item.id === requested)?.id ?? 'all';
+
+let events: ActivityWithActor[] | null = null;
+try {
+  events = await getActivity({ entityType: type === 'all' ? undefined : type });
+} catch {
+  events = null;
+}
+
+const tabs = types.map((item) => ({
+  label: item.label,
+  href: item.id === 'all' ? '/activity' : `/activity?type=${item.id}`,
+  active: item.id === type,
+}));
+---
+
+<AppLayout title="Activity" width="narrow">
+  <PageHeader title="Activity" description="A chronological record of everything happening across the workspace." />
+
+  <Tabs items={tabs} label="Filter activity" class="mt-6" />
+
+  <div class="mt-6">
+    {
+      events === null ? (
+        <div class="rounded-card border border-line bg-surface">
+          <ErrorState description="We couldn't load the activity log." />
+        </div>
+      ) : events.length === 0 ? (
+        <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
+          <EmptyState title="No activity yet" description="As your team creates, updates and completes work, it will be recorded here.">
+            <ActivityIcon slot="icon" aria-hidden="true" />
+          </EmptyState>
+        </div>
+      ) : (
+        <ActivityTimeline events={events} timeZone={Astro.locals.timeZone} />
+      )
+    }
+  </div>
+</AppLayout>

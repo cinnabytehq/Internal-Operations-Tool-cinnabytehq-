@@ -1,0 +1,145 @@
+---
+/**
+ * The request's history as a vertical timeline, followed by a comment box.
+ */
+import type { ActivityWithActor, RequestWithRelations, User } from '@/types';
+import CirclePlus from '@lucide/astro/icons/circle-plus';
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import ShieldEllipsis from '@lucide/astro/icons/shield-ellipsis';
+import UserRoundPlus from '@lucide/astro/icons/user-round-plus';
+import Avatar from '@/components/ui/Avatar.astro';
+import Button from '@/components/ui/Button.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import Textarea from '@/components/ui/Textarea.astro';
+import { formatDateTime, formatRelative } from '@/lib/dates';
+import { REQUEST_STATUS_META } from '@/lib/meta';
+import type { RequestStatus } from '@/types';
+
+interface Props {
+  request: RequestWithRelations;
+  timeline: ActivityWithActor[];
+  user: User;
+  timeZone: string;
+}
+
+const { request, timeline, user, timeZone } = Astro.props;
+
+type Item =
+  | { kind: 'event'; at: string; event: ActivityWithActor }
+  | { kind: 'approval_requested'; at: string; approver: User };
+
+const items: Item[] = timeline.map((event) => ({ kind: 'event' as const, at: event.createdAt, event }));
+if (request.approval) {
+  items.push({ kind: 'approval_requested', at: request.approval.requestedAt, approver: request.approval.approver });
+}
+items.sort((a, b) => a.at.localeCompare(b.at));
+
+const statusColors: Record<RequestStatus, string> = {
+  new: 'text-status-new',
+  in_review: 'text-status-review',
+  in_progress: 'text-status-progress',
+  completed: 'text-status-done',
+};
+const node =
+  'relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-fg-muted [&_svg]:size-3.5';
+const strong = 'font-medium text-fg';
+---
+
+<ol class="relative">
+  {
+    items.map((item, index) => (
+      <li class="relative flex gap-3 pb-5">
+        {index < items.length - 1 && (
+          <span class="absolute top-7 bottom-0 left-3.5 w-px -translate-x-1/2 bg-line" aria-hidden="true" />
+        )}
+        {item.kind === 'approval_requested' ? (
+          <>
+            <span class={node}>
+              <ShieldEllipsis aria-hidden="true" />
+            </span>
+            <p class="pt-1 text-[13px] text-fg-muted">
+              Approval requested from <span class={strong}>{item.approver.name}</span>
+              <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
+                {formatRelative(item.at)}
+              </time>
+            </p>
+          </>
+        ) : item.event.type === 'commented' ? (
+          <>
+            <Avatar user={item.event.actor} size="md" class="relative z-10 -ml-0.5 ring-4 ring-surface" />
+            <div class="min-w-0 flex-1">
+              <p class="pt-1 text-[13px] text-fg-muted">
+                <span class={strong}>{item.event.actor.name}</span> commented
+                <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
+                  {formatRelative(item.at)}
+                </time>
+              </p>
+              <div class="mt-2 rounded-lg border border-line bg-subtle/60 px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-line text-fg">
+                {item.event.meta?.comment}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <span class={node}>
+              {item.event.type === 'created' && <CirclePlus aria-hidden="true" />}
+              {item.event.type === 'approved' && <ShieldCheck class="text-accent-ink" aria-hidden="true" />}
+              {item.event.type === 'assigned' && <UserRoundPlus aria-hidden="true" />}
+              {item.event.type === 'status_changed' && (
+                <PipelineIcon
+                  step={REQUEST_STATUS_META[item.event.meta?.to as RequestStatus]?.step ?? 1}
+                  total={4}
+                  class={statusColors[item.event.meta?.to as RequestStatus]}
+                />
+              )}
+            </span>
+            <p class="pt-1 text-[13px] text-fg-muted">
+              <span class={strong}>{item.event.actor.name}</span>{' '}
+              {item.event.type === 'created' && 'opened this request'}
+              {item.event.type === 'approved' && 'approved this request'}
+              {item.event.type === 'assigned' && (
+                <>
+                  assigned it to <span class={strong}>{item.event.target?.name}</span>
+                </>
+              )}
+              {item.event.type === 'status_changed' && (
+                <>
+                  moved it from{' '}
+                  <span class={strong}>{REQUEST_STATUS_META[item.event.meta?.from as RequestStatus]?.label}</span> to{' '}
+                  <span class={strong}>{REQUEST_STATUS_META[item.event.meta?.to as RequestStatus]?.label}</span>
+                </>
+              )}
+              <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
+                {formatRelative(item.at)}
+              </time>
+            </p>
+          </>
+        )}
+      </li>
+    ))
+  }
+</ol>
+
+<form id="comment-form" class="flex gap-3" novalidate>
+  <Avatar user={user} size="md" class="-ml-0.5" />
+  <div class="min-w-0 flex-1">
+    <label for="comment-input" class="sr-only">Add a comment</label>
+    <Textarea
+      id="comment-input"
+      name="comment"
+      rows="2"
+      maxlength="1000"
+      placeholder="Add a comment or an update…"
+      class="min-h-[4.5rem]"
+      aria-describedby="comment-input-error"
+    />
+    <div class="mt-2 flex items-center justify-between gap-3">
+      <p id="comment-input-error" data-error-for="comment-input" class="text-xs font-medium text-danger-ink empty:hidden"></p>
+      <span class="hidden items-center gap-1 text-xs text-fg-subtle sm:flex">
+        <Kbd data-mod-key>Ctrl</Kbd><Kbd>Enter</Kbd> to send
+      </span>
+      <Button type="submit" size="sm" variant="secondary" class="ml-auto">Comment</Button>
+    </div>
+  </div>
+</form>

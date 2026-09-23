@@ -1,0 +1,161 @@
+---
+/**
+ * Project detail — progress, tasks, people and recent activity.
+ */
+import CalendarDays from '@lucide/astro/icons/calendar-days';
+import FileQuestionMark from '@lucide/astro/icons/file-question-mark';
+import SquareCheckBig from '@lucide/astro/icons/square-check-big';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Avatar from '@/components/ui/Avatar.astro';
+import Button from '@/components/ui/Button.astro';
+import Card from '@/components/ui/Card.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ProgressBar from '@/components/ui/ProgressBar.astro';
+import ActivityItem from '@/components/activity/ActivityItem.astro';
+import ProjectStatusBadge from '@/components/projects/ProjectStatusBadge.astro';
+import TaskRow from '@/components/tasks/TaskRow.astro';
+import { getProjectActivity } from '@/services/activity';
+import { getProjectById } from '@/services/projects';
+import { getTasks } from '@/services/tasks';
+import { daysFromToday, formatDate } from '@/lib/dates';
+import { ROLE_META } from '@/lib/meta';
+import { pluralize } from '@/lib/utils';
+
+const { id = '' } = Astro.params;
+const { timeZone } = Astro.locals;
+
+const project = await getProjectById(id);
+if (!project) Astro.response.status = 404;
+
+const [tasks, activity] = project
+  ? await Promise.all([getTasks({ projectId: project.id }), getProjectActivity(project.id)])
+  : [[], []];
+
+const daysLeft = project ? daysFromToday(project.dueDate, timeZone) : 0;
+const openTasks = tasks.filter((task) => task.status !== 'done').length;
+const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
+---
+
+<AppLayout
+  title={project?.name ?? 'Project not found'}
+  breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: project?.name ?? 'Not found' }]}
+>
+  {
+    !project ? (
+      <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
+        <EmptyState title="Project not found" description={`We couldn't find ${id}. It may have been archived or the link is mistyped.`}>
+          <FileQuestionMark slot="icon" aria-hidden="true" />
+          <Button href="/projects" size="sm">
+            Back to projects
+          </Button>
+        </EmptyState>
+      </div>
+    ) : (
+      <>
+        <header>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-xs text-fg-muted">{project.id}</span>
+            <ProjectStatusBadge status={project.status} />
+          </div>
+          <h1 class="mt-2.5 text-xl font-semibold tracking-tight text-fg sm:text-2xl">{project.name}</h1>
+          <p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-fg-muted">{project.description}</p>
+        </header>
+
+        <section aria-label="Progress" class="mt-6 rounded-card border border-line bg-surface p-5 shadow-card">
+          <div class="flex items-baseline justify-between gap-4">
+            <h2 class="text-sm font-semibold text-fg">Progress</h2>
+            <span class="text-2xl font-semibold tracking-tight text-fg">{project.progress}%</span>
+          </div>
+          <ProgressBar
+            value={project.progress}
+            label={`${project.name} progress`}
+            tone={project.status === 'at_risk' ? 'warning' : 'accent'}
+            size="md"
+            class="mt-3"
+          />
+          <dl class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div class={stat}>
+              <dt class="text-xs text-fg-muted">Owner</dt>
+              <dd class="mt-1.5 flex items-center gap-2 text-[13px] font-medium text-fg">
+                <Avatar user={project.owner} size="xs" />
+                <span class="truncate">{project.owner.name}</span>
+              </dd>
+            </div>
+            <div class={stat}>
+              <dt class="text-xs text-fg-muted">Tasks</dt>
+              <dd class="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
+                <SquareCheckBig class="size-3.5 text-fg-subtle" aria-hidden="true" />
+                {project.completedTaskCount} of {project.taskCount} done
+              </dd>
+            </div>
+            <div class={stat}>
+              <dt class="text-xs text-fg-muted">Started</dt>
+              <dd class="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
+                <CalendarDays class="size-3.5 text-fg-subtle" aria-hidden="true" />
+                {formatDate(project.startDate, timeZone)}
+              </dd>
+            </div>
+            <div class={stat}>
+              <dt class="text-xs text-fg-muted">Due</dt>
+              <dd class="mt-1.5 text-[13px] font-medium text-fg">
+                {formatDate(project.dueDate, timeZone)}
+                <span class:list={['ml-1 font-normal', daysLeft < 0 ? 'text-fg-subtle' : 'text-fg-muted']}>
+                  {project.status === 'completed' ? '· done' : daysLeft >= 0 ? `· ${pluralize(daysLeft, 'day')} left` : '· overdue'}
+                </span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div class="mt-5 grid gap-5 lg:grid-cols-3">
+          <Card title="Tasks" description={`${openTasks} open · ${tasks.length - openTasks} done`} flush class="lg:col-span-2">
+            {tasks.length === 0 ? (
+              <EmptyState compact title="No tasks yet" description="Tasks added to this project will be listed here." />
+            ) : (
+              <ul class="border-t border-line">
+                {tasks.map((task) => (
+                  <TaskRow task={task} timeZone={timeZone} hideProject />
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <div class="flex min-w-0 flex-col gap-5">
+            <Card title="People" description={pluralize(project.members.length, 'member')}>
+              <ul class="flex flex-col gap-3">
+                {project.members.map((member) => (
+                  <li class="flex items-center gap-3">
+                    <Avatar user={member} size="md" />
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-[13px] font-medium text-fg">{member.name}</p>
+                      <p class="truncate text-xs text-fg-muted">{member.title}</p>
+                    </div>
+                    {member.id === project.ownerId ? (
+                      <span class="text-[11px] font-medium text-accent-ink">Owner</span>
+                    ) : (
+                      <span class="text-[11px] text-fg-subtle">{ROLE_META[member.role].label}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            <Card title="Recent activity">
+              {activity.length === 0 ? (
+                <p class="text-[13px] text-fg-muted">Nothing has happened here recently.</p>
+              ) : (
+                <ol class="space-y-4">
+                  {activity.slice(0, 5).map((event) => (
+                    <li>
+                      <ActivityItem event={event} timeZone={timeZone} />
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </Card>
+          </div>
+        </div>
+      </>
+    )
+  }
+</AppLayout>

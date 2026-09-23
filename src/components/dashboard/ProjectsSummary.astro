@@ -1,0 +1,52 @@
+---
+/** Active projects with progress (server island). */
+import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import ProgressBar from '@/components/ui/ProgressBar.astro';
+import ProjectStatusBadge from '@/components/projects/ProjectStatusBadge.astro';
+import { getProjects } from '@/services/projects';
+import type { ProjectWithRelations } from '@/types';
+
+let projects: ProjectWithRelations[] | null = null;
+try {
+  projects = (await getProjects({ activeOnly: true })).sort((a, b) => b.progress - a.progress).slice(0, 4);
+} catch {
+  projects = null;
+}
+---
+
+{
+  projects === null ? (
+    <ErrorState compact description="We couldn't load projects." />
+  ) : projects.length === 0 ? (
+    <EmptyState compact title="No active projects" description="Projects your team is working on will appear here.">
+      <FolderKanban slot="icon" aria-hidden="true" />
+    </EmptyState>
+  ) : (
+    <ul class="animate-fade-in -mt-1 divide-y divide-line">
+      {projects.map((project) => (
+        <li class="py-3.5 first:pt-2 last:pb-0">
+          <div class="flex items-center justify-between gap-3">
+            <a href={`/projects/${project.id}`} class="min-w-0 truncate text-[13px] font-medium text-fg hover:underline">
+              {project.name}
+            </a>
+            <span class="tabular shrink-0 text-[13px] font-medium text-fg">{project.progress}%</span>
+          </div>
+          <ProgressBar
+            value={project.progress}
+            label={`${project.name} progress`}
+            tone={project.status === 'at_risk' ? 'warning' : 'accent'}
+            class="mt-2"
+          />
+          <div class="mt-2 flex items-center justify-between gap-3">
+            <ProjectStatusBadge status={project.status} />
+            <span class="text-xs text-fg-subtle">
+              {project.completedTaskCount}/{project.taskCount} tasks · {project.owner.name}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}

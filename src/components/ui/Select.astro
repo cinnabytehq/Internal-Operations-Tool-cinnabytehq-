@@ -1,0 +1,31 @@
+---
+/**
+ * Native <select> with CinnabyteHQ styling. Native keeps it accessible and
+ * gives phones their own picker UI.
+ */
+import type { HTMLAttributes } from 'astro/types';
+import ChevronDown from '@lucide/astro/icons/chevron-down';
+import { cn } from '@/lib/utils';
+
+interface Props extends Omit<HTMLAttributes<'select'>, 'class'> {
+  class?: string;
+}
+
+const { class: className, ...rest } = Astro.props;
+---
+
+<div class={cn('relative', className)}>
+  <select
+    class={cn(
+      'h-9 w-full appearance-none rounded-md border border-line bg-surface pr-9 pl-3 text-sm text-fg shadow-xs pointer-coarse:h-11',
+      'transition-[border-color,box-shadow] duration-150 hover:border-line-strong',
+      'focus:border-accent focus:ring-3 focus:ring-ring focus:outline-none',
+      'aria-invalid:border-danger-ink',
+      'invalid:text-fg-subtle',
+    )}
+    {...rest}
+  >
+    <slot />
+  </select>
+  <ChevronDown class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-fg-subtle" aria-hidden="true" />
+</div>

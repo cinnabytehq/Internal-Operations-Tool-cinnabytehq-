@@ -1,0 +1,28 @@
+---
+import type { RequestCategory } from '@/types';
+import Laptop from '@lucide/astro/icons/laptop';
+import KeyRound from '@lucide/astro/icons/key-round';
+import Building from '@lucide/astro/icons/building';
+import PenTool from '@lucide/astro/icons/pen-tool';
+import Wallet from '@lucide/astro/icons/wallet';
+import Users from '@lucide/astro/icons/users';
+
+interface Props {
+  category: RequestCategory;
+  class?: string;
+}
+
+const { category, class: className = 'size-3.5' } = Astro.props;
+
+const icons = {
+  it_equipment: Laptop,
+  software_access: KeyRound,
+  facilities: Building,
+  design: PenTool,
+  finance: Wallet,
+  people: Users,
+};
+const Icon = icons[category];
+---
+
+<Icon class={className} aria-hidden="true" />

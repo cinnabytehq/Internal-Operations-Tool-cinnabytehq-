@@ -1,0 +1,44 @@
+---
+/**
+ * Toast region + template. Toasts are created from any script with
+ * `toast({ title, description, variant })` (src/scripts/toast.ts).
+ */
+import CircleCheck from '@lucide/astro/icons/circle-check';
+import CircleAlert from '@lucide/astro/icons/circle-alert';
+import Info from '@lucide/astro/icons/info';
+import X from '@lucide/astro/icons/x';
+---
+
+<section
+  id="toast-region"
+  aria-label="Notifications"
+  aria-live="polite"
+  class="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex flex-col items-center gap-2 p-4 sm:inset-x-auto sm:right-0 sm:items-end sm:p-6"
+>
+</section>
+
+<template id="toast-template">
+  <div
+    data-toast
+    data-state="closed"
+    class="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border border-line bg-elevated py-3 pr-2.5 pl-3.5 shadow-pop transition-[opacity,transform] duration-200 ease-out data-[state=closed]:translate-y-2 data-[state=closed]:opacity-0 sm:w-[22rem]"
+  >
+    <span class="mt-0.5 shrink-0 [&_svg]:size-4">
+      <CircleCheck data-toast-icon="success" class="text-success-ink" aria-hidden="true" />
+      <CircleAlert data-toast-icon="error" class="text-danger-ink" aria-hidden="true" />
+      <Info data-toast-icon="info" class="text-info-ink" aria-hidden="true" />
+    </span>
+    <div class="min-w-0 flex-1">
+      <p data-toast-title class="text-[13px] font-medium text-fg"></p>
+      <p data-toast-description class="mt-0.5 text-[13px] text-fg-muted empty:hidden"></p>
+    </div>
+    <button
+      type="button"
+      data-toast-close
+      class="-my-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded text-fg-subtle transition-colors hover:bg-subtle hover:text-fg"
+      aria-label="Dismiss"
+    >
+      <X class="size-3.5" aria-hidden="true" />
+    </button>
+  </div>
+</template>

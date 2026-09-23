@@ -1,0 +1,24 @@
+---
+import type { Priority } from '@/types';
+import PriorityIcon from '@/components/ui/PriorityIcon.astro';
+import { PRIORITY_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  priority: Priority;
+  /** Hide the text label (icon keeps an accessible name) */
+  iconOnly?: boolean;
+  class?: string;
+}
+
+const { priority, iconOnly = false, class: className } = Astro.props;
+const label = `${PRIORITY_META[priority].label} priority`;
+---
+
+<span
+  class={cn('inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-fg-muted', className)}
+  title={iconOnly ? label : undefined}
+>
+  <PriorityIcon priority={priority} />
+  {iconOnly ? <span class="sr-only">{label}</span> : PRIORITY_META[priority].label}
+</span>

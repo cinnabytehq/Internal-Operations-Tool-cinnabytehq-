@@ -1,0 +1,49 @@
+---
+import Dialog from '@/components/ui/Dialog.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+import { NAV_ITEMS } from './navigation';
+
+const groups = [
+  {
+    title: 'General',
+    items: [
+      { label: 'Search workspace', keys: ['Mod', 'K'] },
+      { label: 'Create a request', keys: ['C'] },
+      { label: 'Focus the list search', keys: ['/'] },
+      { label: 'Toggle sidebar', keys: ['['] },
+      { label: 'Show keyboard shortcuts', keys: ['?'] },
+    ],
+  },
+  {
+    title: 'Navigation',
+    items: NAV_ITEMS.map((item) => ({ label: `Go to ${item.label}`, keys: item.shortcut.split(' ') })),
+  },
+];
+---
+
+<Dialog id="shortcuts-dialog" title="Keyboard shortcuts" description="Move around CinnabyteHQ without leaving the keyboard." size="md">
+  <div class="grid gap-6 sm:grid-cols-2">
+    {
+      groups.map((group) => (
+        <section>
+          <h3 class="mb-2 text-[11px] font-medium tracking-wide text-fg-subtle uppercase">{group.title}</h3>
+          <ul class="flex flex-col">
+            {group.items.map((item) => (
+              <li class="flex items-center justify-between gap-3 border-b border-line py-2 text-[13px] last:border-0">
+                <span class="text-fg-muted">{item.label}</span>
+                <span class="flex items-center gap-1">
+                  {item.keys.map((key, index) => (
+                    <>
+                      {index > 0 && group.title === 'Navigation' && <span class="text-[11px] text-fg-subtle">then</span>}
+                      {key === 'Mod' ? <Kbd data-mod-key>Ctrl</Kbd> : <Kbd>{key}</Kbd>}
+                    </>
+                  ))}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </div>
+</Dialog>

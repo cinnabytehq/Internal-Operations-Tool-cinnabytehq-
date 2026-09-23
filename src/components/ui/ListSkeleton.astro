@@ -1,0 +1,66 @@
+---
+/**
+ * Loading placeholder for lists. Shapes mirror the real rows so nothing
+ * jumps when data arrives.
+ */
+import { cn } from '@/lib/utils';
+import Skeleton from './Skeleton.astro';
+
+interface Props {
+  rows?: number;
+  variant?: 'activity' | 'request' | 'task' | 'project';
+  class?: string;
+  label?: string;
+}
+
+const { rows = 4, variant = 'request', class: className, label = 'Loading' } = Astro.props;
+const widths = ['w-3/4', 'w-2/3', 'w-4/5', 'w-1/2', 'w-3/5', 'w-2/3'];
+---
+
+<div class={cn('flex flex-col', className)} aria-busy="true" role="status">
+  <span class="sr-only">{label}…</span>
+  {
+    Array.from({ length: rows }, (_, index) => {
+      const width = widths[index % widths.length];
+      if (variant === 'activity') {
+        return (
+          <div class="flex gap-3 py-2.5">
+            <Skeleton class="size-8 shrink-0 rounded-full" />
+            <div class="flex-1 space-y-2 pt-1">
+              <Skeleton class={cn('h-3.5', width)} />
+              <Skeleton class="h-3 w-16" />
+            </div>
+          </div>
+        );
+      }
+      if (variant === 'project') {
+        return (
+          <div class="space-y-2.5 py-3">
+            <div class="flex items-center justify-between gap-4">
+              <Skeleton class={cn('h-3.5', width)} />
+              <Skeleton class="h-3.5 w-8" />
+            </div>
+            <Skeleton class="h-1.5 w-full rounded-full" />
+          </div>
+        );
+      }
+      if (variant === 'task') {
+        return (
+          <div class="flex items-center gap-3 py-3">
+            <Skeleton class="size-[18px] shrink-0 rounded-[5px]" />
+            <Skeleton class={cn('h-3.5', width)} />
+            <Skeleton class="ml-auto h-3.5 w-14" />
+          </div>
+        );
+      }
+      return (
+        <div class="flex items-center gap-3 py-3">
+          <Skeleton class="size-3.5 shrink-0 rounded-full" />
+          <Skeleton class={cn('h-3.5', width)} />
+          <Skeleton class="ml-auto size-6 shrink-0 rounded-full" />
+          <Skeleton class="h-3 w-12" />
+        </div>
+      );
+    })
+  }
+</div>

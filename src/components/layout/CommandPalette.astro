@@ -1,0 +1,121 @@
+---
+/**
+ * ⌘K / Ctrl+K command palette: quick actions, navigation and a live search
+ * across requests, projects and tasks (via the `search` action → search
+ * service). Behaviour lives in src/scripts/commandPalette.ts.
+ */
+import Search from '@lucide/astro/icons/search';
+import Plus from '@lucide/astro/icons/plus';
+import SunMoon from '@lucide/astro/icons/sun-moon';
+import Keyboard from '@lucide/astro/icons/keyboard';
+import Inbox from '@lucide/astro/icons/inbox';
+import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import SquareCheckBig from '@lucide/astro/icons/square-check-big';
+import CornerDownLeft from '@lucide/astro/icons/corner-down-left';
+import SearchX from '@lucide/astro/icons/search-x';
+import Kbd from '@/components/ui/Kbd.astro';
+import Skeleton from '@/components/ui/Skeleton.astro';
+import NavIcon from './NavIcon.astro';
+import { NAV_ITEMS } from './navigation';
+
+const optionClass =
+  'flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-[13px] text-fg outline-none aria-selected:bg-subtle [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-fg-subtle pointer-coarse:py-3';
+const groupLabel = 'px-2.5 pt-3 pb-1.5 text-[11px] font-medium tracking-wide text-fg-subtle uppercase';
+---
+
+<dialog
+  id="command-palette"
+  aria-label="Search and commands"
+  class="dialog-panel mx-auto mt-[10vh] w-[calc(100%-1.5rem)] max-w-xl overflow-hidden rounded-xl border border-line bg-elevated p-0 text-fg shadow-dialog md:mt-[14vh]"
+>
+  <div class="flex items-center gap-2.5 border-b border-line px-4">
+    <Search class="size-4 shrink-0 text-fg-subtle" aria-hidden="true" />
+    <input
+      id="palette-input"
+      type="text"
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="palette-list"
+      aria-autocomplete="list"
+      aria-label="Search requests, projects and tasks"
+      placeholder="Search requests, projects, tasks…"
+      autocomplete="off"
+      spellcheck="false"
+      class="h-12 min-w-0 flex-1 bg-transparent text-[15px] text-fg placeholder:text-fg-subtle focus:outline-none"
+    />
+    <Kbd class="max-sm:hidden">Esc</Kbd>
+  </div>
+
+  <div id="palette-list" role="listbox" aria-label="Results" class="max-h-[min(440px,60dvh)] overflow-y-auto p-1.5">
+    <!-- Live search results are rendered here by the script -->
+    <div data-palette-results></div>
+
+    <div data-palette-loading hidden class="space-y-2 px-2.5 py-3" aria-hidden="true">
+      <Skeleton class="h-4 w-2/3" />
+      <Skeleton class="h-4 w-1/2" />
+      <Skeleton class="h-4 w-3/5" />
+    </div>
+
+    <div data-palette-empty hidden class="flex flex-col items-center px-6 py-10 text-center">
+      <SearchX class="mb-3 size-5 text-fg-subtle" aria-hidden="true" />
+      <p class="text-sm font-medium text-fg">No results for “<span data-palette-query></span>”</p>
+      <p class="mt-1 text-[13px] text-fg-muted">Try a request ID like REQ-1042, a project name or a task.</p>
+    </div>
+
+    <div data-palette-static>
+      <div role="group" aria-labelledby="palette-actions-label" data-palette-group>
+        <div id="palette-actions-label" class={groupLabel}>Quick actions</div>
+        <button type="button" role="option" aria-selected="false" data-palette-item data-palette-command="new-request" data-keywords="new create request submit" class={optionClass}>
+          <Plus aria-hidden="true" />
+          <span class="flex-1">Create a request</span>
+          <Kbd>C</Kbd>
+        </button>
+        <button type="button" role="option" aria-selected="false" data-palette-item data-palette-command="toggle-theme" data-keywords="theme dark light mode appearance" class={optionClass}>
+          <SunMoon aria-hidden="true" />
+          <span class="flex-1">Switch light / dark theme</span>
+        </button>
+        <button type="button" role="option" aria-selected="false" data-palette-item data-palette-command="shortcuts" data-keywords="keyboard shortcuts help keys" class={optionClass}>
+          <Keyboard aria-hidden="true" />
+          <span class="flex-1">Keyboard shortcuts</span>
+          <Kbd>?</Kbd>
+        </button>
+      </div>
+      <div role="group" aria-labelledby="palette-nav-label" data-palette-group>
+        <div id="palette-nav-label" class={groupLabel}>Go to</div>
+        {
+          NAV_ITEMS.map((item) => (
+            <a href={item.href} role="option" aria-selected="false" data-palette-item data-keywords={`go navigate ${item.label}`} class={optionClass}>
+              <NavIcon name={item.icon} />
+              <span class="flex-1">{item.label}</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+
+  <footer class="hidden items-center gap-4 border-t border-line bg-subtle/60 px-4 py-2 text-[11px] text-fg-subtle sm:flex">
+    <span class="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
+    <span class="flex items-center gap-1"><Kbd><CornerDownLeft class="size-3" aria-hidden="true" /></Kbd> open</span>
+    <span class="ml-auto">Searching requests, projects and tasks</span>
+  </footer>
+</dialog>
+
+<!-- Templates used to render live results -->
+<template id="palette-group-template">
+  <div role="group" data-palette-group>
+    <div data-group-label class={groupLabel}></div>
+  </div>
+</template>
+<template id="palette-option-template">
+  <a role="option" aria-selected="false" data-palette-item class={optionClass}>
+    <span data-option-icon class="flex [&_svg]:size-4 [&_svg]:text-fg-subtle"></span>
+    <span class="min-w-0 flex-1">
+      <span data-option-title class="block truncate"></span>
+      <span data-option-subtitle class="block truncate text-xs text-fg-subtle"></span>
+    </span>
+  </a>
+</template>
+<template id="palette-icon-request"><Inbox aria-hidden="true" /></template>
+<template id="palette-icon-project"><FolderKanban aria-hidden="true" /></template>
+<template id="palette-icon-task"><SquareCheckBig aria-hidden="true" /></template>

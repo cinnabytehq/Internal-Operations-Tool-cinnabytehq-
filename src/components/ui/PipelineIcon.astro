@@ -1,0 +1,74 @@
+---
+/**
+ * CinnabyteHQ status glyph: a ring split into one segment per workflow
+ * stage. Filled segments show how far along an item is, so the shape — not
+ * just the color — communicates status. The final stage becomes a check.
+ */
+import { cn } from '@/lib/utils';
+
+interface Props {
+  /** Stages completed so far (0…total) */
+  step: number;
+  total: number;
+  size?: number;
+  class?: string;
+}
+
+const { step, total, size = 14, class: className } = Astro.props;
+
+const radius = 5.75;
+const circumference = 2 * Math.PI * radius;
+const gap = 1.9;
+const segment = circumference / total - gap;
+const filled = Array.from({ length: step }, () => `${segment.toFixed(3)} ${gap}`).join(' ');
+const filledDash = `${filled} 0 ${circumference.toFixed(3)}`;
+const complete = step >= total;
+---
+
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 16 16"
+  fill="none"
+  class={cn('shrink-0', className)}
+  aria-hidden="true"
+>
+  {
+    complete ? (
+      <>
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path
+          d="M5.1 8.2 7.1 10.1 10.9 6.1"
+          stroke="var(--surface)"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </>
+    ) : (
+      <g transform="rotate(-90 8 8)">
+        <circle
+          cx="8"
+          cy="8"
+          r={radius}
+          stroke="currentColor"
+          stroke-opacity="0.3"
+          stroke-width="2"
+          stroke-dasharray={`${segment.toFixed(3)} ${gap}`}
+          stroke-dashoffset={-gap / 2}
+        />
+        {step > 0 && (
+          <circle
+            cx="8"
+            cy="8"
+            r={radius}
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-dasharray={filledDash}
+            stroke-dashoffset={-gap / 2}
+          />
+        )}
+      </g>
+    )
+  }
+</svg>

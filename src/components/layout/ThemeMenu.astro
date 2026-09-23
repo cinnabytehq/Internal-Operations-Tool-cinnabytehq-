@@ -1,0 +1,28 @@
+---
+import Sun from '@lucide/astro/icons/sun';
+import Moon from '@lucide/astro/icons/moon';
+import Monitor from '@lucide/astro/icons/monitor';
+import Button from '@/components/ui/Button.astro';
+import Menu from '@/components/ui/Menu.astro';
+import MenuItem from '@/components/ui/MenuItem.astro';
+import MenuLabel from '@/components/ui/MenuLabel.astro';
+---
+
+<Button
+  variant="ghost"
+  size="icon-sm"
+  popovertarget="theme-menu"
+  aria-haspopup="menu"
+  aria-expanded="false"
+  aria-label="Change theme"
+  title="Theme"
+>
+  <Sun class="size-4 dark:hidden" aria-hidden="true" />
+  <Moon class="hidden size-4 dark:block" aria-hidden="true" />
+</Button>
+<Menu id="theme-menu" label="Theme" class="min-w-40">
+  <MenuLabel>Theme</MenuLabel>
+  <MenuItem data-theme-option="light" checked={false}><Sun slot="icon" aria-hidden="true" />Light</MenuItem>
+  <MenuItem data-theme-option="dark" checked={false}><Moon slot="icon" aria-hidden="true" />Dark</MenuItem>
+  <MenuItem data-theme-option="system" checked={false}><Monitor slot="icon" aria-hidden="true" />System</MenuItem>
+</Menu>

@@ -1,0 +1,104 @@
+---
+/**
+ * Requests — the core workflow. Views (tabs) are server-side filters in
+ * the URL (?view=assigned); the search box filters instantly on the client
+ * and is mirrored to ?q=.
+ */
+import Plus from '@lucide/astro/icons/plus';
+import SearchX from '@lucide/astro/icons/search-x';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import SearchInput from '@/components/ui/SearchInput.astro';
+import Tabs from '@/components/ui/Tabs.astro';
+import RequestTable from '@/components/requests/RequestTable.astro';
+import { getRequestCounts, getRequests, requestSearchText } from '@/services/requests';
+import { REQUEST_VIEWS, isRequestView } from '@/lib/meta';
+import { matchesQuery } from '@/lib/utils';
+import type { RequestView } from '@/types';
+
+const params = Astro.url.searchParams;
+const view: RequestView = isRequestView(params.get('view')) ? (params.get('view') as RequestView) : 'all';
+const query = params.get('q') ?? '';
+
+let data: { requests: Awaited<ReturnType<typeof getRequests>>; counts: Awaited<ReturnType<typeof getRequestCounts>> } | null = null;
+try {
+  const [requests, counts] = await Promise.all([getRequests({ view }), getRequestCounts()]);
+  data = { requests, counts };
+} catch {
+  data = null;
+}
+
+const tabs = REQUEST_VIEWS.map((item) => ({
+  label: item.label,
+  href: item.id === 'all' ? '/requests' : `/requests?view=${item.id}`,
+  active: item.id === view,
+  count: data?.counts[item.id],
+}));
+
+const emptyCopy: Record<RequestView, { title: string; description: string }> = {
+  all: { title: 'No requests yet', description: 'When your team submits an internal request, it will appear here.' },
+  mine: { title: "You haven't submitted any requests", description: 'Need equipment, access or help from another team? Start a request.' },
+  assigned: { title: 'Nothing assigned to you', description: 'Requests assigned to you will show up here.' },
+  pending_approval: { title: 'No approvals pending', description: 'Requests that need sign-off will wait here until they are approved.' },
+  in_progress: { title: 'Nothing in progress', description: 'Requests move here once work starts.' },
+  completed: { title: 'No completed requests yet', description: 'Finished requests are kept here for reference.' },
+};
+const hasMatches = data?.requests.some((request) => matchesQuery(requestSearchText(request), query)) ?? false;
+---
+
+<AppLayout title="Requests">
+  <PageHeader title="Requests" description="Track and manage internal requests across the workspace.">
+    <Button slot="actions" variant="primary" data-dialog-open="create-request" class="max-sm:w-full">
+      <Plus class="size-4" aria-hidden="true" />
+      New request
+    </Button>
+  </PageHeader>
+
+  <div data-filter-scope class="mt-6">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <Tabs items={tabs} label="Request views" />
+      <SearchInput label="Search requests" placeholder="Search requests…" value={query} class="lg:w-72" />
+    </div>
+
+    <div class="mt-4">
+      {
+        data === null ? (
+          <div class="rounded-card border border-line bg-surface">
+            <ErrorState description="We couldn't load requests. Check your connection and try again." />
+          </div>
+        ) : data.requests.length === 0 ? (
+          <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
+            <EmptyState {...emptyCopy[view]}>
+              <Button variant="primary" size="sm" data-dialog-open="create-request">
+                <Plus class="size-3.5" aria-hidden="true" />
+                Create request
+              </Button>
+            </EmptyState>
+          </div>
+        ) : (
+          <>
+            <RequestTable requests={data.requests} query={query} timeZone={Astro.locals.timeZone} />
+            <div
+              data-filter-empty
+              hidden={hasMatches}
+              class="rounded-card border border-dashed border-line-strong bg-surface/60"
+            >
+              <EmptyState
+                title="No matching requests"
+                description="Try a different keyword, a request ID like REQ-1042, or a person's name."
+              >
+                <SearchX slot="icon" aria-hidden="true" />
+                <Button size="sm" data-filter-clear>
+                  Clear search
+                </Button>
+              </EmptyState>
+            </div>
+          </>
+        )
+      }
+    </div>
+  </div>
+</AppLayout>

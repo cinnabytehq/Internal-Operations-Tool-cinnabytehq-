@@ -1,0 +1,120 @@
+---
+/**
+ * "Next step" — tells people what has to happen for this request to move
+ * forward, and offers the action when they're the one who can take it.
+ */
+import type { RequestStatus, RequestWithRelations, User } from '@/types';
+import ArrowRight from '@lucide/astro/icons/arrow-right';
+import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
+import Hourglass from '@lucide/astro/icons/hourglass';
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import Sparkles from '@lucide/astro/icons/sparkles';
+import Button from '@/components/ui/Button.astro';
+import { formatRelative } from '@/lib/dates';
+import { CATEGORY_META } from '@/lib/meta';
+
+interface Props {
+  request: RequestWithRelations;
+  user: User;
+}
+
+const { request, user } = Astro.props;
+
+interface Action {
+  label: string;
+  variant: 'primary' | 'secondary';
+  status?: RequestStatus;
+  approve?: boolean;
+}
+
+const approval = request.approval;
+const needsApproval = CATEGORY_META[request.category].requiresApproval;
+const assigneeName = request.assignee?.name ?? 'nobody yet';
+
+let icon = Sparkles;
+let title = '';
+let description = '';
+let actions: Action[] = [];
+let tone: 'accent' | 'warning' | 'neutral' = 'accent';
+
+if (request.status === 'new') {
+  title = 'Triage this request';
+  if (needsApproval && !approval) {
+    description = `${CATEGORY_META[request.category].label} requests need an approval before work starts. Sending it for review routes it to the right approver automatically.`;
+    actions = [{ label: 'Send for approval', variant: 'primary', status: 'in_review' }];
+  } else {
+    description = 'Check the details, then start work or move it to review if it needs more discussion.';
+    actions = [
+      { label: 'Start work', variant: 'primary', status: 'in_progress' },
+      { label: 'Move to review', variant: 'secondary', status: 'in_review' },
+    ];
+  }
+} else if (request.status === 'in_review' && approval?.status === 'pending') {
+  icon = ShieldCheck;
+  tone = 'warning';
+  if (approval.approverId === user.id) {
+    title = 'Your approval is needed';
+    description = `${request.requester.name} is waiting on your decision. Approving moves the request straight to In progress.`;
+    actions = [{ label: 'Approve request', variant: 'primary', approve: true }];
+  } else {
+    icon = Hourglass;
+    title = `Waiting on ${approval.approver.name}`;
+    description = `Approval was requested ${formatRelative(approval.requestedAt)}. Work can start as soon as it's approved.`;
+  }
+} else if (request.status === 'in_review') {
+  title = 'Ready to start';
+  description = 'Review is done. Move it forward when the assignee picks it up.';
+  actions = [{ label: 'Start work', variant: 'primary', status: 'in_progress' }];
+} else if (request.status === 'in_progress') {
+  icon = ArrowRight;
+  title = `In progress with ${assigneeName}`;
+  description = request.assignee
+    ? 'Mark it as completed once the work has been delivered to the requester.'
+    : 'Assign someone so the requester knows who is working on it.';
+  actions = [{ label: 'Mark as completed', variant: 'primary', status: 'completed' }];
+} else {
+  icon = CircleCheckBig;
+  tone = 'neutral';
+  title = 'Request completed';
+  description = `Closed ${formatRelative(request.updatedAt)}. Reopen it if more work is needed.`;
+  actions = [{ label: 'Reopen request', variant: 'secondary', status: 'in_progress' }];
+}
+
+const Icon = icon;
+const toneClasses = {
+  accent: 'bg-accent-soft text-accent-ink',
+  warning: 'bg-warning-soft text-warning-ink',
+  neutral: 'bg-subtle text-fg-muted',
+};
+---
+
+<section
+  aria-labelledby="next-step-title"
+  class="flex flex-col gap-4 rounded-card border border-line bg-surface p-5 shadow-card sm:flex-row sm:items-center"
+>
+  <span class={`flex size-10 shrink-0 items-center justify-center rounded-lg ${toneClasses[tone]}`}>
+    <Icon class="size-5" aria-hidden="true" />
+  </span>
+  <div class="min-w-0 flex-1">
+    <p class="text-[11px] font-medium tracking-wide text-fg-subtle uppercase">Next step</p>
+    <h2 id="next-step-title" class="mt-0.5 text-sm font-semibold text-fg">{title}</h2>
+    <p class="mt-1 text-[13px] leading-relaxed text-fg-muted">{description}</p>
+  </div>
+  {
+    actions.length > 0 && (
+      <div class="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch lg:flex-row">
+        {actions.map((action) => (
+          <Button
+            variant={action.variant}
+            size="sm"
+            data-request-status={action.status}
+            data-request-approve={action.approve ? '' : undefined}
+            class="max-sm:flex-1"
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
+    )
+  }
+</section>

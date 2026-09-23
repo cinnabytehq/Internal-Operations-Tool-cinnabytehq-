@@ -1,0 +1,35 @@
+---
+/** Recent activity (server island). */
+import Activity from '@lucide/astro/icons/activity';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import ActivityItem from '@/components/activity/ActivityItem.astro';
+import { getActivity } from '@/services/activity';
+import type { ActivityWithActor } from '@/types';
+
+let events: ActivityWithActor[] | null = null;
+try {
+  events = await getActivity({ limit: 6 });
+} catch {
+  events = null;
+}
+const { timeZone } = Astro.locals;
+---
+
+{
+  events === null ? (
+    <ErrorState compact description="We couldn't load recent activity." />
+  ) : events.length === 0 ? (
+    <EmptyState compact title="No activity yet" description="Updates from your team will appear here as work moves.">
+      <Activity slot="icon" aria-hidden="true" />
+    </EmptyState>
+  ) : (
+    <ol class="animate-fade-in space-y-4">
+      {events.map((event) => (
+        <li>
+          <ActivityItem event={event} timeZone={timeZone} />
+        </li>
+      ))}
+    </ol>
+  )
+}

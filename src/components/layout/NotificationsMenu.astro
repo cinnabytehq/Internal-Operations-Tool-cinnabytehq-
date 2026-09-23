@@ -1,0 +1,93 @@
+---
+/**
+ * Bell + notifications panel. Read/unread state is kept per browser in
+ * localStorage for now (see src/scripts/notifications.ts).
+ * TODO(api): persist "read" state with PATCH /api/me/notifications.
+ */
+import type { ActivityWithActor } from '@/types';
+import Bell from '@lucide/astro/icons/bell';
+import BellOff from '@lucide/astro/icons/bell-off';
+import Avatar from '@/components/ui/Avatar.astro';
+import Button from '@/components/ui/Button.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import Menu from '@/components/ui/Menu.astro';
+import ActivityText from '@/components/activity/ActivityText.astro';
+import { formatRelative } from '@/lib/dates';
+
+interface Props {
+  notifications: ActivityWithActor[];
+}
+
+const { notifications } = Astro.props;
+---
+
+<Button
+  variant="ghost"
+  size="icon-sm"
+  popovertarget="notifications-panel"
+  aria-haspopup="dialog"
+  aria-expanded="false"
+  aria-label="Notifications"
+  title="Notifications"
+>
+  <Bell class="size-4" aria-hidden="true" />
+  <span
+    data-unread-dot
+    hidden
+    class="absolute top-1.5 right-1.5 size-2 rounded-full bg-accent ring-2 ring-canvas"
+  ></span>
+  <span data-unread-label class="sr-only"></span>
+</Button>
+
+<Menu id="notifications-panel" label="Notifications" role="dialog" class="w-[min(380px,calc(100vw-1.5rem))] p-0">
+  <div class="flex items-center justify-between border-b border-line px-4 py-3">
+    <p class="text-sm font-semibold">Notifications</p>
+    <button
+      type="button"
+      data-mark-notifications-read
+      class="rounded text-xs font-medium text-accent-ink hover:underline disabled:pointer-events-none disabled:text-fg-subtle"
+    >
+      Mark all as read
+    </button>
+  </div>
+  {
+    notifications.length === 0 ? (
+      <EmptyState compact title="You're all caught up" description="Updates on your requests, tasks and projects will show up here.">
+        <BellOff slot="icon" aria-hidden="true" />
+      </EmptyState>
+    ) : (
+      <ul class="max-h-[min(420px,60vh)] overflow-y-auto p-1.5">
+        {notifications.map((event) => (
+          <li>
+            <a
+              href={event.href ?? '/activity'}
+              data-notification
+              data-created-at={event.createdAt}
+              class="group relative flex gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-subtle"
+            >
+              <Avatar user={event.actor} size="md" />
+              <span class="min-w-0 flex-1">
+                <ActivityText event={{ ...event, href: null }} class="line-clamp-2" />
+                <span class="mt-0.5 block text-xs text-fg-subtle">{formatRelative(event.createdAt)}</span>
+              </span>
+              <span
+                data-unread-indicator
+                hidden
+                class="mt-2 size-2 shrink-0 rounded-full bg-accent"
+                aria-label="Unread"
+              />
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+  <div class="border-t border-line p-1.5">
+    <a
+      href="/activity"
+      class="flex h-8 items-center justify-center rounded-md text-[13px] font-medium text-fg-muted transition-colors hover:bg-subtle hover:text-fg"
+    >
+      View all activity
+    </a>
+  </div>
+</Menu>

@@ -1,0 +1,16 @@
+---
+import Compass from '@lucide/astro/icons/compass';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+---
+
+<AppLayout title="Page not found">
+  <div class="mt-10 rounded-card border border-dashed border-line-strong bg-surface/60">
+    <EmptyState title="This page doesn't exist" description="The link may be broken, or the page may have moved. Try search with Ctrl K / ⌘K.">
+      <Compass slot="icon" aria-hidden="true" />
+      <Button href="/dashboard" variant="primary" size="sm">Go to Overview</Button>
+      <Button size="sm" data-palette-open>Search workspace</Button>
+    </EmptyState>
+  </div>
+</AppLayout>

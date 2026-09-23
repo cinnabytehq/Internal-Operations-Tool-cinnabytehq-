@@ -1,0 +1,20 @@
+---
+import LogoMark from './LogoMark.astro';
+
+interface Props {
+  href?: string;
+}
+
+const { href = '/dashboard' } = Astro.props;
+---
+
+<a
+  href={href}
+  class="flex min-w-0 items-center gap-2.5 rounded-md outline-offset-4"
+  aria-label="CinnabyteHQ — go to overview"
+>
+  <LogoMark />
+  <span class="truncate text-[15px] font-semibold tracking-tight text-fg rail:hidden">
+    Cinnabyte<span class="text-accent-ink">HQ</span>
+  </span>
+</a>
