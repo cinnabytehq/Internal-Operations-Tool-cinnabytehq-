@@ -1,0 +1,108 @@
+---
+/**
+ * Approvals — GET /api/approvals?status=. Decide in place with
+ * POST /api/approvals/:id/approve and …/reject (a reason is required).
+ */
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
+import Dialog from '@/components/ui/Dialog.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import Field from '@/components/ui/Field.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import Tabs from '@/components/ui/Tabs.astro';
+import Textarea from '@/components/ui/Textarea.astro';
+import ApprovalCard from '@/components/approvals/ApprovalCard.astro';
+import { serverApi } from '@/lib/api/server';
+import { APPROVAL_META, APPROVAL_STATUSES, isApprovalStatus } from '@/lib/meta';
+import type { ApprovalListMeta, ApprovalStatus, ApprovalWithRelations, Profile } from '@/types';
+
+const status: ApprovalStatus = isApprovalStatus(Astro.url.searchParams.get('status'))
+  ? (Astro.url.searchParams.get('status') as ApprovalStatus)
+  : 'pending';
+const user = Astro.locals.user as Profile;
+
+let approvals: ApprovalWithRelations[] | null = null;
+let meta: ApprovalListMeta | null = null;
+let loadError = '';
+try {
+  ({ data: approvals, meta } = await serverApi(Astro).getApprovals({ status }));
+} catch (error) {
+  loadError = error instanceof Error ? error.message : 'Please try again.';
+}
+
+const tabs = APPROVAL_STATUSES.map((value) => ({
+  label: APPROVAL_META[value].tab,
+  href: value === 'pending' ? '/approvals' : `/approvals?status=${value}`,
+  active: value === status,
+  count: meta?.counts[value],
+  countKey: value,
+}));
+const waitingOnMe = approvals?.filter((approval) => approval.status === 'pending' && approval.approver_id === user.id).length ?? 0;
+const emptyCopy: Record<ApprovalStatus, { title: string; description: string }> = {
+  pending: { title: 'Nothing waiting for approval', description: 'Requests that need sign-off will appear here as soon as they move to review.' },
+  approved: { title: 'No approved requests yet', description: 'Approved requests are kept here for reference.' },
+  rejected: { title: 'No rejected requests', description: 'Rejected requests and their reasons are kept here.' },
+};
+---
+
+<AppLayout title="Approvals">
+  <PageHeader
+    title="Approvals"
+    description={status === 'pending' && waitingOnMe > 0
+      ? `${waitingOnMe} ${waitingOnMe === 1 ? 'request is' : 'requests are'} waiting on you.`
+      : 'Sign-off decisions for purchases, equipment and facilities requests.'}
+  />
+
+  <Tabs items={tabs} label="Approval status" class="mt-6" />
+
+  <div class="mt-4" data-approvals>
+    {
+      approvals === null ? (
+        <div class="rounded-card border border-line bg-surface">
+          <ErrorState description={loadError} />
+        </div>
+      ) : (
+        <>
+          <div data-approvals-empty hidden={approvals.length > 0} class="rounded-card border border-dashed border-line-strong bg-surface/60">
+            <EmptyState {...emptyCopy[status]}>
+              <ShieldCheck slot="icon" aria-hidden="true" />
+            </EmptyState>
+          </div>
+          <ul class="flex flex-col gap-3" aria-label={`${APPROVAL_META[status].tab} approvals`}>
+            {approvals.map((approval) => (
+              <ApprovalCard approval={approval} user={user} timeZone={Astro.locals.timeZone} />
+            ))}
+          </ul>
+        </>
+      )
+    }
+  </div>
+
+  <Dialog id="reject-approval" title="Reject this request?" description="The requester will see your reason." size="sm">
+    <form id="reject-form" novalidate>
+      <p data-reject-title class="mb-4 rounded-md border border-line bg-subtle/60 px-3 py-2 text-[13px] font-medium text-fg"></p>
+      <Field label="Reason" for="reject-reason">
+        <Textarea
+          id="reject-reason"
+          name="comment"
+          rows="3"
+          maxlength="1000"
+          required
+          autofocus
+          placeholder="e.g. Not in this quarter's budget — please resubmit in January."
+          aria-describedby="reject-reason-error"
+        />
+      </Field>
+    </form>
+    <Fragment slot="footer">
+      <Button data-dialog-close>Cancel</Button>
+      <Button variant="danger" type="submit" form="reject-form">Reject request</Button>
+    </Fragment>
+  </Dialog>
+</AppLayout>
+
+<script>
+  import '@/scripts/approvals';
+</script>

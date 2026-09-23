@@ -12,12 +12,14 @@ export interface ToastOptions {
   description?: string;
   variant?: ToastVariant;
   duration?: number;
+  /** Optional link, e.g. { label: 'View request', href: '/requests/…' } */
+  action?: { label: string; href: string };
 }
 
 const FLASH_KEY = 'cinnabyte:flash-toast';
 const MAX_VISIBLE = 3;
 
-export function toast({ title, description = '', variant = 'success', duration = 4500 }: ToastOptions): void {
+export function toast({ title, description = '', variant = 'success', duration = 4500, action }: ToastOptions): void {
   const region = document.getElementById('toast-region');
   const template = document.getElementById('toast-template') as HTMLTemplateElement | null;
   if (!region || !template) return;
@@ -25,6 +27,12 @@ export function toast({ title, description = '', variant = 'success', duration =
   const node = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
   node.querySelector('[data-toast-title]')!.textContent = title;
   node.querySelector('[data-toast-description]')!.textContent = description;
+  const link = node.querySelector<HTMLAnchorElement>('[data-toast-action]');
+  if (link && action) {
+    link.textContent = action.label;
+    link.href = action.href;
+    link.hidden = false;
+  }
   node.querySelectorAll<SVGElement>('[data-toast-icon]').forEach((icon) => {
     if (icon.dataset.toastIcon !== variant) icon.remove();
   });
@@ -84,7 +92,8 @@ export function showFlashToast(): void {
   }
 }
 
-/** Show an error toast for a failed action call. */
-export function toastError(error: { message?: string } | undefined, fallback = 'Please try again in a moment.'): void {
-  toast({ title: 'Something went wrong', description: error?.message || fallback, variant: 'error' });
+/** Show a friendly error toast for a failed API call. */
+export function toastError(error: unknown, title = 'Something went wrong'): void {
+  const message = error instanceof Error && error.message ? error.message : 'Please try again in a moment.';
+  toast({ title, description: message, variant: 'error', duration: 6500 });
 }

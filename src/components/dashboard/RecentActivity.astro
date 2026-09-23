@@ -1,24 +1,25 @@
 ---
-/** Recent activity (server island). */
+/** Recent activity (server island) — GET /api/activity?limit=6. */
 import Activity from '@lucide/astro/icons/activity';
 import EmptyState from '@/components/ui/EmptyState.astro';
 import ErrorState from '@/components/ui/ErrorState.astro';
 import ActivityItem from '@/components/activity/ActivityItem.astro';
-import { getActivity } from '@/services/activity';
-import type { ActivityWithActor } from '@/types';
+import { serverApi } from '@/lib/api/server';
+import type { ActivityWithRelations } from '@/types';
 
-let events: ActivityWithActor[] | null = null;
+let events: ActivityWithRelations[] | null = null;
+let loadError = '';
 try {
-  events = await getActivity({ limit: 6 });
-} catch {
-  events = null;
+  events = await serverApi(Astro).getActivity({ limit: 6 });
+} catch (error) {
+  loadError = error instanceof Error ? error.message : '';
 }
 const { timeZone } = Astro.locals;
 ---
 
 {
   events === null ? (
-    <ErrorState compact description="We couldn't load recent activity." />
+    <ErrorState compact description={loadError || "We couldn't load recent activity."} />
   ) : events.length === 0 ? (
     <EmptyState compact title="No activity yet" description="Updates from your team will appear here as work moves.">
       <Activity slot="icon" aria-hidden="true" />

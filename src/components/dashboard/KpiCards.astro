@@ -1,57 +1,59 @@
 ---
 /**
- * KPI row (server island). Each tile links to the matching request view.
+ * KPI row (server island) — real counts from GET /api/dashboard.
+ * Each tile links to the matching request view.
  */
 import Inbox from '@lucide/astro/icons/inbox';
 import Loader from '@lucide/astro/icons/loader';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
 import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
 import ErrorState from '@/components/ui/ErrorState.astro';
-import { getDashboardSummary } from '@/services/dashboard';
+import { serverApi } from '@/lib/api/server';
 import type { DashboardSummary } from '@/types';
 
 let summary: DashboardSummary | null = null;
+let loadError = '';
 try {
-  summary = await getDashboardSummary();
-} catch {
-  summary = null;
+  summary = await serverApi(Astro).getDashboard();
+} catch (error) {
+  loadError = error instanceof Error ? error.message : '';
 }
 
 const tiles = summary
   ? [
       {
         label: 'Active requests',
-        value: summary.activeRequests.count,
+        value: summary.active_requests.count,
         icon: Inbox,
         href: '/requests',
-        emphasis: summary.activeRequests.openedThisWeek > 0 ? `+${summary.activeRequests.openedThisWeek}` : '0',
+        emphasis: summary.active_requests.opened_this_week > 0 ? `+${summary.active_requests.opened_this_week}` : '0',
         context: 'opened this week',
         attention: false,
       },
       {
         label: 'In progress',
-        value: summary.inProgress.count,
+        value: summary.in_progress.count,
         icon: Loader,
-        href: '/requests?view=in_progress',
-        emphasis: String(summary.inProgress.highPriority),
+        href: '/requests?status=in_progress',
+        emphasis: String(summary.in_progress.high_priority),
         context: 'high priority',
         attention: false,
       },
       {
         label: 'Awaiting approval',
-        value: summary.awaitingApproval.count,
+        value: summary.awaiting_approval.count,
         icon: ShieldCheck,
-        href: '/requests?view=pending_approval',
-        emphasis: String(summary.awaitingApproval.waitingOnYou),
+        href: '/approvals',
+        emphasis: String(summary.awaiting_approval.waiting_on_you),
         context: 'waiting on you',
-        attention: summary.awaitingApproval.waitingOnYou > 0,
+        attention: summary.awaiting_approval.waiting_on_you > 0,
       },
       {
         label: 'Completed',
         value: summary.completed.count,
         icon: CircleCheckBig,
-        href: '/requests?view=completed',
-        emphasis: String(summary.completed.lastSevenDays),
+        href: '/requests?status=completed',
+        emphasis: String(summary.completed.last_seven_days),
         context: 'in the last 7 days',
         attention: false,
       },
@@ -85,7 +87,7 @@ const tiles = summary
     </div>
   ) : (
     <div class="rounded-card border border-line bg-surface">
-      <ErrorState compact description="We couldn't load your workspace metrics." />
+      <ErrorState compact description={loadError || "We couldn't load your workspace metrics."} />
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { isMac, isTyping } from './ui';
 const GO_TO: Record<string, string> = {
   d: '/dashboard',
   r: '/requests',
+  v: '/approvals',
   p: '/projects',
   t: '/tasks',
   a: '/activity',

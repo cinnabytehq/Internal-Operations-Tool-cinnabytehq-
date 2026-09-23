@@ -3,7 +3,7 @@
  * Chronological activity log grouped by day, with 24h clock times in the
  * viewer's time zone.
  */
-import type { ActivityWithActor } from '@/types';
+import type { ActivityWithRelations } from '@/types';
 import Avatar from '@/components/ui/Avatar.astro';
 import { dayKey, dayLabel, formatDateTime, formatTime } from '@/lib/dates';
 import { ENTITY_META } from '@/lib/meta';
@@ -11,18 +11,18 @@ import ActivityDetail from './ActivityDetail.astro';
 import ActivityText from './ActivityText.astro';
 
 interface Props {
-  events: ActivityWithActor[];
+  events: ActivityWithRelations[];
   timeZone: string;
 }
 
 const { events, timeZone } = Astro.props;
 
-const groups: Array<{ key: string; label: string; events: ActivityWithActor[] }> = [];
+const groups: Array<{ key: string; label: string; events: ActivityWithRelations[] }> = [];
 for (const event of events) {
-  const key = dayKey(event.createdAt, timeZone);
+  const key = dayKey(event.created_at, timeZone);
   let group = groups.find((candidate) => candidate.key === key);
   if (!group) {
-    group = { key, label: dayLabel(event.createdAt, timeZone), events: [] };
+    group = { key, label: dayLabel(event.created_at, timeZone), events: [] };
     groups.push(group);
   }
   group.events.push(event);
@@ -42,14 +42,18 @@ for (const event of events) {
           {group.events.map((event, index) => (
             <li class="relative flex gap-3 px-4 py-3.5 sm:gap-4 sm:px-5">
               <time
-                datetime={event.createdAt}
-                title={formatDateTime(event.createdAt, timeZone)}
+                datetime={event.created_at}
+                title={formatDateTime(event.created_at, timeZone)}
                 class="tabular w-10 shrink-0 pt-1.5 text-xs text-fg-subtle"
               >
-                {formatTime(event.createdAt, timeZone)}
+                {formatTime(event.created_at, timeZone)}
               </time>
               <div class="relative flex shrink-0 flex-col items-center">
-                <Avatar user={event.actor} size="md" class="relative z-10 ring-4 ring-surface" />
+                {event.user ? (
+                  <Avatar user={event.user} size="md" class="relative z-10 ring-4 ring-surface" />
+                ) : (
+                  <span class="relative z-10 size-8 rounded-full bg-muted ring-4 ring-surface" />
+                )}
                 {index < group.events.length - 1 && (
                   <span class="absolute top-8 -bottom-3.5 w-px bg-line" aria-hidden="true" />
                 )}
@@ -58,7 +62,12 @@ for (const event of events) {
                 <ActivityText event={event} />
                 <ActivityDetail event={event} />
                 <p class="mt-1.5 text-[11px] text-fg-subtle">
-                  {ENTITY_META[event.entityType].label} · <span class="font-mono">{event.entityId}</span>
+                  {ENTITY_META[event.entity].label}
+                  {event.entity_ref && (
+                    <>
+                      {' '}· <span class="font-mono">{event.entity_ref}</span>
+                    </>
+                  )}
                 </p>
               </div>
             </li>

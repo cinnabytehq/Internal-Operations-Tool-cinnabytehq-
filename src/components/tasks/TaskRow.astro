@@ -2,74 +2,78 @@
 /**
  * One task. Two layouts:
  *   - "full"    (Tasks page, project pages): checkbox, title, project,
- *               priority, assignee, due date, status menu, details
+ *               priority, assignee menu, due date, status menu, details
  *   - "compact" (Overview): checkbox, title, priority, due date
  *
  * The row's `data-status` drives its appearance (and the matching
  * [data-status-label] is shown), so src/scripts/tasks.ts can update a row
- * optimistically without re-rendering it.
+ * optimistically after PATCH /api/tasks/:id without re-rendering it.
  */
-import type { TaskWithRelations } from '@/types';
+import type { Profile, TaskWithRelations } from '@/types';
 import Check from '@lucide/astro/icons/check';
 import ChevronDown from '@lucide/astro/icons/chevron-down';
 import FolderKanban from '@lucide/astro/icons/folder-kanban';
-import Inbox from '@lucide/astro/icons/inbox';
+import Trash from '@lucide/astro/icons/trash';
+import UserRound from '@lucide/astro/icons/user-round';
+import UserRoundPlus from '@lucide/astro/icons/user-round-plus';
 import Avatar from '@/components/ui/Avatar.astro';
 import Menu from '@/components/ui/Menu.astro';
 import MenuItem from '@/components/ui/MenuItem.astro';
 import MenuLabel from '@/components/ui/MenuLabel.astro';
-import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import MenuSeparator from '@/components/ui/MenuSeparator.astro';
 import PriorityLabel from '@/components/requests/PriorityLabel.astro';
+import TaskStatusIcon from './TaskStatusIcon.astro';
 import TaskStatusLabel from './TaskStatusLabel.astro';
 import { describeDue } from '@/lib/dates';
-import { TASK_STATUSES, TASK_STATUS_META } from '@/lib/meta';
+import { PRIORITY_META, TASK_STATUSES, TASK_STATUS_META } from '@/lib/meta';
 import { cn } from '@/lib/utils';
-import { taskSearchText } from '@/services/tasks';
 
 interface Props {
   task: TaskWithRelations;
   timeZone: string;
   variant?: 'full' | 'compact';
+  /** People who can be assigned (full layout) */
+  people?: Profile[];
   /** Hide the project column (on a project's own page) */
   hideProject?: boolean;
   /** Initially filtered out by the list search */
   hidden?: boolean;
 }
 
-const { task, timeZone, variant = 'full', hideProject = false, hidden = false } = Astro.props;
-const due = describeDue(task.dueDate, timeZone, task.status === 'done');
+const { task, timeZone, variant = 'full', people = [], hideProject = false, hidden = false } = Astro.props;
+const done = task.status === 'completed';
+const due = describeDue(task.due_date, timeZone, done);
 const dueClass = {
   overdue: 'text-danger-ink',
   soon: 'text-warning-ink',
   normal: 'text-fg-muted',
   done: 'text-fg-subtle',
 }[due.tone];
-const menuId = `task-status-${task.id}`;
+const statusMenuId = `task-status-${task.id}`;
+const assigneeMenuId = `task-assignee-${task.id}`;
 const detailsId = `task-details-${task.id}`;
-const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progress', done: 'text-status-done' };
+const searchText = [task.title, task.description, task.project.name, task.assignee?.full_name, PRIORITY_META[task.priority].label]
+  .filter(Boolean)
+  .join(' ');
 ---
 
 <li
-  id={variant === 'full' ? task.id : undefined}
+  id={variant === 'full' ? `task-${task.id}` : undefined}
   data-highlight
   data-task-row={task.id}
   data-status={task.status}
+  data-priority={task.priority}
   data-filter-item
-  data-filter-text={taskSearchText(task)}
+  data-filter-text={searchText}
   hidden={hidden}
   class="group/task border-b border-line last:border-b-0"
 >
-  <div
-    class={cn(
-      'flex items-center gap-3',
-      variant === 'full' ? 'min-h-12 px-4 py-2.5 sm:px-5' : 'min-h-11 py-2',
-    )}
-  >
+  <div class={cn('flex items-center gap-3', variant === 'full' ? 'min-h-12 px-4 py-2.5 sm:px-5' : 'min-h-11 py-2')}>
     <label class="relative -m-1.5 flex shrink-0 p-1.5">
       <input
         type="checkbox"
         data-task-toggle
-        checked={task.status === 'done'}
+        checked={done}
         class="peer absolute inset-0 z-10 cursor-pointer opacity-0"
         aria-label={`Mark “${task.title}” as complete`}
       />
@@ -87,15 +91,13 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
 
     <div class="min-w-0 flex-1">
       <p
-        class="truncate text-[13px] font-medium text-fg transition-colors group-data-[status=done]/task:text-fg-subtle group-data-[status=done]/task:line-through"
+        class="truncate text-[13px] font-medium text-fg transition-colors group-data-[status=completed]/task:text-fg-subtle group-data-[status=completed]/task:line-through"
       >
         {task.title}
       </p>
       {
-        (variant === 'compact' || !hideProject) && task.project && (
-          <p class={cn('mt-0.5 truncate text-xs text-fg-subtle', variant === 'full' && 'lg:hidden')}>
-            {task.project.name}
-          </p>
+        (variant === 'compact' || !hideProject) && (
+          <p class={cn('mt-0.5 truncate text-xs text-fg-subtle', variant === 'full' && 'lg:hidden')}>{task.project.name}</p>
         )
       }
       {
@@ -111,15 +113,13 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
     {
       variant === 'full' && !hideProject && (
         <span class="hidden w-40 shrink-0 truncate lg:block">
-          {task.project && (
-            <a
-              href={`/projects/${task.project.id}`}
-              class="inline-flex max-w-full items-center gap-1.5 truncate text-xs text-fg-muted hover:text-fg"
-            >
-              <FolderKanban class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
-              <span class="truncate">{task.project.name}</span>
-            </a>
-          )}
+          <a
+            href={`/projects/${task.project.id}`}
+            class="inline-flex max-w-full items-center gap-1.5 truncate text-xs text-fg-muted hover:text-fg"
+          >
+            <FolderKanban class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
+            <span class="truncate">{task.project.name}</span>
+          </a>
         </span>
       )
     }
@@ -130,16 +130,53 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
       class={cn('shrink-0', variant === 'full' && 'w-20 max-md:hidden')}
     />
 
-    {variant === 'full' && <Avatar user={task.assignee} labelled class="max-sm:hidden" />}
+    {
+      variant === 'full' && (
+        <>
+          <button
+            type="button"
+            popovertarget={assigneeMenuId}
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-label={`Assignee: ${task.assignee?.full_name ?? 'nobody'}. Change assignee`}
+            title={task.assignee?.full_name ?? 'Unassigned'}
+            class="-m-1 shrink-0 rounded-full p-1 transition-colors hover:bg-subtle max-sm:hidden"
+          >
+            <span data-task-assignee-avatar class="flex">
+              {task.assignee ? (
+                <Avatar user={task.assignee} />
+              ) : (
+                <span class="flex size-6 items-center justify-center rounded-full border border-dashed border-line-strong text-fg-subtle">
+                  <UserRoundPlus class="size-3" aria-hidden="true" />
+                </span>
+              )}
+            </span>
+          </button>
+          <Menu id={assigneeMenuId} label="Assign task" class="w-60">
+            <MenuLabel>Assign to</MenuLabel>
+            {people.map((person) => (
+              <MenuItem
+                data-task-assignee={person.id}
+                data-task-id={task.id}
+                data-name={person.full_name}
+                checked={person.id === task.assignee_id}
+              >
+                <Avatar slot="icon" user={person} />
+                {person.full_name}
+              </MenuItem>
+            ))}
+            <MenuSeparator />
+            <MenuItem data-task-assignee="" data-task-id={task.id} checked={!task.assignee_id}>
+              <UserRound slot="icon" aria-hidden="true" />
+              Unassigned
+            </MenuItem>
+          </Menu>
+        </>
+      )
+    }
 
-    <span
-      class={cn(
-        'shrink-0 text-right text-xs whitespace-nowrap',
-        dueClass,
-        variant === 'full' ? 'hidden w-28 md:block' : 'w-24',
-      )}
-    >
-      <time datetime={task.dueDate}>{due.label}</time>
+    <span class={cn('shrink-0 text-right text-xs whitespace-nowrap', dueClass, variant === 'full' ? 'hidden w-28 md:block' : 'w-24')}>
+      {task.due_date ? <time datetime={task.due_date}>{due.label}</time> : <span class="text-fg-subtle">—</span>}
     </span>
 
     {
@@ -147,7 +184,7 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
         <>
           <button
             type="button"
-            popovertarget={menuId}
+            popovertarget={statusMenuId}
             aria-haspopup="menu"
             aria-expanded="false"
             aria-label={`Change status of “${task.title}”`}
@@ -160,11 +197,11 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
             ))}
             <ChevronDown class="size-3.5 text-fg-subtle" aria-hidden="true" />
           </button>
-          <Menu id={menuId} label="Task status" class="min-w-44">
+          <Menu id={statusMenuId} label="Task status" class="min-w-44">
             <MenuLabel>Status</MenuLabel>
             {TASK_STATUSES.map((status) => (
               <MenuItem data-task-status={status} data-task-id={task.id} checked={task.status === status}>
-                <PipelineIcon slot="icon" step={TASK_STATUS_META[status].step} total={2} class={statusColors[status]} />
+                <TaskStatusIcon slot="icon" status={status} />
                 {TASK_STATUS_META[status].label}
               </MenuItem>
             ))}
@@ -188,38 +225,46 @@ const statusColors = { todo: 'text-fg-subtle', in_progress: 'text-status-progres
     variant === 'full' && (
       <div id={detailsId} hidden class="px-4 pb-4 pl-[3.25rem] sm:px-5 sm:pl-[3.5rem]">
         <div class="rounded-lg border border-line bg-subtle/60 p-3.5">
-          {task.description && <p class="text-[13px] leading-relaxed text-fg">{task.description}</p>}
-          <dl class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs">
-            <div class="flex items-center gap-1.5">
-              <dt class="text-fg-subtle">Assignee</dt>
-              <dd class="font-medium text-fg">{task.assignee.name}</dd>
-            </div>
-            <div class="flex items-center gap-1.5 sm:hidden">
-              <dt class="text-fg-subtle">Status</dt>
-              <dd class="font-medium text-fg">
-                {TASK_STATUSES.map((status) => (
-                  <span data-status-label={status} hidden={status !== task.status}>
-                    {TASK_STATUS_META[status].label}
-                  </span>
-                ))}
-              </dd>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <dt class="text-fg-subtle">ID</dt>
-              <dd class="font-mono text-fg-muted">{task.id}</dd>
-            </div>
-            {task.request && (
+          <p class={cn('text-[13px] leading-relaxed', task.description ? 'text-fg' : 'text-fg-subtle')}>
+            {task.description ?? 'No description.'}
+          </p>
+          <div class="mt-3 flex flex-wrap items-end justify-between gap-3">
+            <dl class="flex flex-wrap gap-x-6 gap-y-2 text-xs">
               <div class="flex items-center gap-1.5">
-                <dt class="text-fg-subtle">From request</dt>
+                <dt class="text-fg-subtle">Assignee</dt>
+                <dd class="font-medium text-fg" data-task-assignee-name>
+                  {task.assignee?.full_name ?? 'Unassigned'}
+                </dd>
+              </div>
+              <div class="flex items-center gap-1.5 sm:hidden">
+                <dt class="text-fg-subtle">Status</dt>
+                <dd class="font-medium text-fg">
+                  {TASK_STATUSES.map((status) => (
+                    <span data-status-label={status} hidden={status !== task.status}>
+                      {TASK_STATUS_META[status].label}
+                    </span>
+                  ))}
+                </dd>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <dt class="text-fg-subtle">Project</dt>
                 <dd>
-                  <a href={`/requests/${task.request.id}`} class="inline-flex items-center gap-1 font-medium text-accent-ink hover:underline">
-                    <Inbox class="size-3.5" aria-hidden="true" />
-                    {task.request.id} · {task.request.title}
+                  <a href={`/projects/${task.project.id}`} class="font-medium text-accent-ink hover:underline">
+                    {task.project.name}
                   </a>
                 </dd>
               </div>
-            )}
-          </dl>
+            </dl>
+            <button
+              type="button"
+              data-task-delete={task.id}
+              data-title={task.title}
+              class="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-danger-ink transition-colors hover:bg-danger-soft"
+            >
+              <Trash class="size-3.5" aria-hidden="true" />
+              Delete task
+            </button>
+          </div>
         </div>
       </div>
     )

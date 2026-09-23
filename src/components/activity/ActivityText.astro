@@ -3,40 +3,42 @@
  * One sentence describing an activity event:
  *   "Sarah Chen approved Onboarding kits for October hires"
  */
-import type { ActivityWithActor } from '@/types';
+import type { ActivityWithRelations } from '@/types';
 import { ACTIVITY_VERBS, ENTITY_META } from '@/lib/meta';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  event: ActivityWithActor;
-  /** Drop the actor's name when an avatar already identifies them */
-  hideActor?: boolean;
+  event: ActivityWithRelations;
+  /** Render the title as plain text (e.g. when the whole row is a link) */
+  plain?: boolean;
   class?: string;
 }
 
-const { event, hideActor = false, class: className } = Astro.props;
-const entityWord = ENTITY_META[event.entityType].label.toLowerCase();
-const showEntityWord = event.type === 'created' || event.type === 'deleted';
+const { event, plain = false, class: className } = Astro.props;
+const entityWord = ENTITY_META[event.entity].label.toLowerCase();
+const showEntityWord = event.action === 'created' || event.action === 'deleted';
+const assignee = event.metadata.assignee_name;
+const verb = event.action === 'assigned' && !assignee ? 'unassigned' : ACTIVITY_VERBS[event.action];
 ---
 
 <p class={cn('text-[13px] leading-5 text-fg-muted', className)}>
-  {!hideActor && <span class="font-medium text-fg">{event.actor.name}</span>}
-  {' '}{ACTIVITY_VERBS[event.type]}{showEntityWord && ` ${entityWord}`}{' '}
+  <span class="font-medium text-fg">{event.user?.full_name ?? 'Someone'}</span>
+  {' '}{verb}{showEntityWord && ` ${entityWord}`}{' '}
   {
-    event.href ? (
+    event.href && !plain ? (
       <a href={event.href} class="font-medium text-fg decoration-line-strong underline-offset-2 hover:underline">
-        {event.entityTitle}
+        {event.entity_title}
       </a>
     ) : (
-      <span class={cn('font-medium text-fg', event.type === 'deleted' && 'line-through decoration-fg-subtle')}>
-        {event.entityTitle}
+      <span class={cn('font-medium text-fg', !event.href && 'text-fg-muted', event.action === 'deleted' && 'line-through decoration-fg-subtle')}>
+        {event.entity_title}
       </span>
     )
   }
   {
-    event.type === 'assigned' && event.target && (
+    event.action === 'assigned' && assignee && (
       <>
-        {' '}to <span class="font-medium text-fg">{event.target.name}</span>
+        {' '}to <span class="font-medium text-fg">{assignee}</span>
       </>
     )
   }

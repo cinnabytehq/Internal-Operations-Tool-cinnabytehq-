@@ -1,107 +1,127 @@
 /**
- * Activity service — the workspace audit log.
+ * Activity — the append-only history of the workspace.
  *
- * Phase 2 endpoints:
- *   GET /api/activity?entityType=&limit=          → getActivity()
- *   GET /api/projects/:id/activity                → getProjectActivity()
- *   GET /api/me/notifications                     → getNotifications()
+ *   GET /api/activity        → listActivity()
+ *   GET /api/notifications   → listNotifications()
  *
- * `recordActivity()` only exists for the mock layer: in Phase 2 the API
- * writes activity rows itself, in the same transaction as the change.
+ * Only the server writes activity (through `logActivity`, called by the
+ * other services). There is deliberately no endpoint that lets a client
+ * create arbitrary log entries.
  */
-import { clone, db, findUser, nextId, simulateLatency } from '@/data/store';
-import { ENTITY_META } from '@/lib/meta';
-import type { Activity, ActivityWithActor, EntityType } from '@/types';
-import { currentUserId } from './users';
+import type { ActivityAction, ActivityLog, ActivityMetadata, ActivityQuery, ActivityWithRelations, EntityType, Profile } from '@/types';
+import { ENTITY_META, requestRef } from '@/lib/meta';
+import { PROFILE_COLUMNS, db, unwrap } from './db';
 
-function entityExists(type: EntityType, id: string): boolean {
-  if (type === 'request') return db.requests.some((request) => request.id === id);
-  if (type === 'project') return db.projects.some((project) => project.id === id);
-  return db.tasks.some((task) => task.id === id);
+const ACTIVITY_SELECT = `*, user:profiles(${PROFILE_COLUMNS}), request:requests(id, number, title, requester_id, assignee_id), project:projects(id, name, owner_id), task:tasks(id, title, assignee_id)`;
+
+interface ActivityRow extends ActivityLog {
+  user: Profile | null;
+  request: { id: string; number: number; title: string; requester_id: string; assignee_id: string | null } | null;
+  project: { id: string; name: string; owner_id: string } | null;
+  task: { id: string; title: string; assignee_id: string | null } | null;
 }
 
-function entityHref(type: EntityType, id: string): string | null {
-  if (!entityExists(type, id)) return null;
-  if (type === 'task') {
-    // Tasks don't have their own page; link to the row in the task list.
-    return `${ENTITY_META.task.path}#${id}`;
+function toActivity(row: ActivityRow): ActivityWithRelations {
+  const { request, project, task, ...log } = row;
+  const entity: EntityType = log.metadata?.entity ?? (log.task_id ? 'task' : log.request_id ? 'request' : 'project');
+  const fallbackTitle = log.metadata?.title ?? 'a deleted record';
+
+  let entity_id: string | null = null;
+  let entity_title = fallbackTitle;
+  let entity_ref: string | null = null;
+  let href: string | null = null;
+
+  if (entity === 'request' && request) {
+    entity_id = request.id;
+    entity_title = request.title;
+    entity_ref = requestRef(request.number);
+    href = `${ENTITY_META.request.path}/${request.id}`;
+  } else if (entity === 'project' && project) {
+    entity_id = project.id;
+    entity_title = project.name;
+    href = `${ENTITY_META.project.path}/${project.id}`;
+  } else if (entity === 'task' && task) {
+    entity_id = task.id;
+    entity_title = task.title;
+    href = `${ENTITY_META.task.path}#task-${task.id}`;
   }
-  return `${ENTITY_META[type].path}/${id}`;
+
+  return { ...log, metadata: log.metadata ?? {}, entity, entity_id, entity_title, entity_ref, href };
 }
 
-/** Attach the actor and a link. Exported for the other mock services. */
-export function withActor(event: Activity): ActivityWithActor {
-  return {
-    ...clone(event),
-    actor: findUser(event.actorId),
-    target: event.meta?.assigneeId ? findUser(event.meta.assigneeId) : null,
-    href: entityHref(event.entityType, event.entityId),
-  };
-}
+export async function listActivity(query: ActivityQuery = {}): Promise<ActivityWithRelations[]> {
+  let request = db()
+    .from('activity_logs')
+    .select(ACTIVITY_SELECT)
+    .order('created_at', { ascending: false })
+    .limit(Math.min(query.limit ?? 100, 200));
 
-const newestFirst = (a: Activity, b: Activity) => b.createdAt.localeCompare(a.createdAt);
+  if (query.entity) request = request.eq('metadata->>entity', query.entity);
+  if (query.request_id) request = request.eq('request_id', query.request_id);
+  if (query.project_id) request = request.eq('project_id', query.project_id);
+  if (query.task_id) request = request.eq('task_id', query.task_id);
 
-export async function getActivity(options: { limit?: number; entityType?: EntityType } = {}): Promise<ActivityWithActor[]> {
-  // TODO(api): return api.get('/activity', { query: options });
-  await simulateLatency();
-  return db.activity
-    .filter((event) => !options.entityType || event.entityType === options.entityType)
-    .sort(newestFirst)
-    .slice(0, options.limit ?? db.activity.length)
-    .map(withActor);
-}
-
-/** Events for a project and for the tasks that belong to it. */
-export async function getProjectActivity(projectId: string, limit = 8): Promise<ActivityWithActor[]> {
-  // TODO(api): return api.get(`/projects/${projectId}/activity`, { query: { limit } });
-  await simulateLatency();
-  const taskIds = new Set(db.tasks.filter((task) => task.projectId === projectId).map((task) => task.id));
-  return db.activity
-    .filter(
-      (event) =>
-        (event.entityType === 'project' && event.entityId === projectId) ||
-        (event.entityType === 'task' && taskIds.has(event.entityId)),
-    )
-    .sort(newestFirst)
-    .slice(0, limit)
-    .map(withActor);
+  const rows = unwrap(await request, 'load activity') as ActivityRow[];
+  return rows.map(toActivity);
 }
 
 /**
- * Things other people did that involve the signed-in user: their requests,
- * requests assigned to them or waiting on their approval, their tasks and
- * the projects they belong to.
+ * Things other people did that involve the given person: their requests,
+ * requests assigned to them, their tasks and projects they own.
+ * (Fine for a small workspace; a production version would query this in SQL.)
  */
-export async function getNotifications(limit = 8): Promise<ActivityWithActor[]> {
-  // TODO(api): return api.get('/me/notifications', { query: { limit } });
-  await simulateLatency();
-  const me = currentUserId();
+export async function listNotifications(user: Profile, limit = 8): Promise<ActivityWithRelations[]> {
+  const result = await db()
+    .from('activity_logs')
+    .select(ACTIVITY_SELECT)
+    .neq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const rows = unwrap(result, 'load notifications') as ActivityRow[];
 
-  const involvesMe = (event: Activity): boolean => {
-    if (event.actorId === me) return false;
-    if (event.meta?.assigneeId === me) return true;
-    if (event.entityType === 'request') {
-      const request = db.requests.find((candidate) => candidate.id === event.entityId);
-      const approval = db.approvals.find((candidate) => candidate.requestId === event.entityId);
-      return request?.requesterId === me || request?.assigneeId === me || approval?.approverId === me;
-    }
-    if (event.entityType === 'task') {
-      return db.tasks.find((task) => task.id === event.entityId)?.assigneeId === me;
-    }
-    return db.projects.find((project) => project.id === event.entityId)?.memberIds.includes(me) ?? false;
-  };
-
-  return db.activity.filter(involvesMe).sort(newestFirst).slice(0, limit).map(withActor);
+  return rows
+    .filter(
+      (row) =>
+        row.metadata?.assignee_id === user.id ||
+        row.request?.requester_id === user.id ||
+        row.request?.assignee_id === user.id ||
+        row.task?.assignee_id === user.id ||
+        row.project?.owner_id === user.id,
+    )
+    .slice(0, limit)
+    .map(toActivity);
 }
 
-/** Mock-only: append an event to the log, attributed to the signed-in user. */
-export function recordActivity(event: Omit<Activity, 'id' | 'createdAt' | 'actorId'>): Activity {
-  const record: Activity = {
-    ...event,
-    id: nextId('activity'),
-    actorId: currentUserId(),
-    createdAt: new Date().toISOString(),
-  };
-  db.activity.unshift(record);
-  return record;
+export interface LogEntry {
+  actor: Profile;
+  action: ActivityAction;
+  description: string;
+  request_id?: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
+  metadata: ActivityMetadata & { entity: EntityType; title: string };
+  /** The entry *is* the data (e.g. a comment): fail loudly if it can't be saved */
+  required?: boolean;
+}
+
+/**
+ * Record an event. By default a failure is logged but doesn't fail the
+ * change that triggered it — that change has already been saved.
+ * (Supabase REST calls can't share a transaction; a production version
+ * would move multi-step writes into a Postgres function.)
+ */
+export async function logActivity(entry: LogEntry): Promise<void> {
+  const { error } = await db()
+    .from('activity_logs')
+    .insert({
+      user_id: entry.actor.id,
+      request_id: entry.request_id ?? null,
+      project_id: entry.project_id ?? null,
+      task_id: entry.task_id ?? null,
+      action: entry.action,
+      description: entry.description,
+      metadata: entry.metadata,
+    });
+  if (error && entry.required) unwrap({ data: null, error }, 'save that');
+  if (error) console.error('[activity] failed to record event:', error);
 }

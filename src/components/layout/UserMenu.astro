@@ -2,7 +2,7 @@
 /**
  * Profile menu. Rendered twice (sidebar + top bar), so ids take a prefix.
  */
-import type { User } from '@/types';
+import type { Profile } from '@/types';
 import UserRound from '@lucide/astro/icons/user-round';
 import Settings from '@lucide/astro/icons/settings';
 import Keyboard from '@lucide/astro/icons/keyboard';
@@ -15,7 +15,7 @@ import Kbd from '@/components/ui/Kbd.astro';
 
 interface Props {
   id: string;
-  user: User;
+  user: Profile;
   placement?: Placement;
 }
 
@@ -24,8 +24,11 @@ const { id, user, placement = 'bottom-end' } = Astro.props;
 
 <Menu id={id} label="Account" placement={placement} class="w-60">
   <div class="px-2 pt-1.5 pb-2">
-    <p class="truncate text-[13px] font-medium text-fg">{user.name}</p>
+    <p class="truncate text-[13px] font-medium text-fg">{user.full_name}</p>
     <p class="truncate text-xs text-fg-muted">{user.email}</p>
+    <p class="mt-2 rounded-md bg-warning-soft px-2 py-1.5 text-[11px] leading-snug text-warning-ink">
+      Development session — no sign-in yet. Set <code class="font-mono">DEV_USER_EMAIL</code> to act as someone else.
+    </p>
   </div>
   <MenuSeparator />
   <MenuItem href="/settings#profile"><UserRound slot="icon" aria-hidden="true" />Profile</MenuItem>

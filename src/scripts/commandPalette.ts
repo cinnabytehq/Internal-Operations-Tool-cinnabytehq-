@@ -3,10 +3,10 @@
  *
  * - Empty query: quick actions + navigation (rendered by the server).
  * - Typing: filters those, and searches requests/projects/tasks through
- *   the `search` action (→ services/search.ts → mock store / REST API).
+ *   GET /api/search?q= (→ services/search.ts → Supabase).
  * - Keyboard: ↑/↓ to move, Enter to open, Esc to close.
  */
-import { actions } from 'astro:actions';
+import { api } from '@/lib/api/browser';
 import type { SearchResult } from '@/types';
 import { openDialog } from './dialogs';
 import { toggleTheme } from './theme';
@@ -100,11 +100,16 @@ export function initCommandPalette(): void {
     }
 
     loadingEl.hidden = resultsEl.childElementCount > 0;
-    const { data, error } = await actions.search({ query });
+    let results: SearchResult[] = [];
+    try {
+      results = await api.search(query);
+    } catch {
+      // Search is best-effort: the built-in actions and pages still filter.
+    }
     if (query !== latestQuery) return; // a newer search is in flight
 
     loadingEl.hidden = true;
-    renderResults(error ? [] : data);
+    renderResults(results);
     const nothing = visibleOptions().length === 0;
     emptyEl.hidden = !nothing;
     emptyEl.querySelector('[data-palette-query]')!.textContent = query;

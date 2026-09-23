@@ -1,0 +1,20 @@
+---
+import type { TaskStatus } from '@/types';
+import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import { TASK_STATUS_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  status: TaskStatus;
+  class?: string;
+}
+
+const { status, class: className } = Astro.props;
+const colors: Record<TaskStatus, string> = {
+  todo: 'text-fg-subtle',
+  in_progress: 'text-status-progress',
+  completed: 'text-status-done',
+};
+---
+
+<PipelineIcon step={TASK_STATUS_META[status].step} total={2} class={cn(colors[status], className)} />

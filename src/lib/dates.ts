@@ -31,9 +31,19 @@ export function formatRelative(iso: string, now = Date.now()): string {
   return formatDate(iso);
 }
 
+/** Calendar dates ("2026-09-25") have no time zone; timestamps do. */
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function toDate(value: string): { date: Date; timeZone?: string } {
+  // Pin calendar dates to UTC so they never shift a day in the viewer's zone.
+  return CALENDAR_DATE.test(value) ? { date: new Date(`${value}T00:00:00Z`), timeZone: 'UTC' } : { date: new Date(value) };
+}
+
 /** "Sep 23" (adds the year when it isn't the current one) */
 export function formatDate(iso: string, timeZone = DEFAULT_TIME_ZONE): string {
-  const date = new Date(iso);
+  const parsed = toDate(iso);
+  const date = parsed.date;
+  timeZone = parsed.timeZone ?? timeZone;
   const sameYear = date.getUTCFullYear() === new Date().getUTCFullYear();
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -74,6 +84,7 @@ export function formatDateTime(iso: string, timeZone = DEFAULT_TIME_ZONE): strin
 
 /** Calendar day key ("2026-09-23") of an instant in a given time zone. */
 export function dayKey(iso: string | number, timeZone = DEFAULT_TIME_ZONE): string {
+  if (typeof iso === 'string' && CALENDAR_DATE.test(iso)) return iso;
   return new Date(iso).toLocaleDateString('en-CA', { timeZone });
 }
 
@@ -103,17 +114,16 @@ export interface DueInfo {
 }
 
 /** Friendly due-date label: "Overdue · Sep 21", "Today", "Tomorrow", "Fri", "Oct 4" */
-export function describeDue(iso: string, timeZone = DEFAULT_TIME_ZONE, done = false): DueInfo {
+export function describeDue(iso: string | null, timeZone = DEFAULT_TIME_ZONE, done = false): DueInfo {
+  if (!iso) return { label: 'No due date', tone: done ? 'done' : 'normal' };
   const days = daysFromToday(iso, timeZone);
   if (done) return { label: formatDate(iso, timeZone), tone: 'done' };
   if (days < 0) return { label: `Overdue · ${formatDate(iso, timeZone)}`, tone: 'overdue' };
   if (days === 0) return { label: 'Today', tone: 'soon' };
   if (days === 1) return { label: 'Tomorrow', tone: 'soon' };
   if (days < 7) {
-    return {
-      label: new Date(iso).toLocaleDateString('en-US', { weekday: 'short', timeZone }),
-      tone: 'normal',
-    };
+    const { date, timeZone: zone } = toDate(iso);
+    return { label: date.toLocaleDateString('en-US', { weekday: 'short', timeZone: zone ?? timeZone }), tone: 'normal' };
   }
   return { label: formatDate(iso, timeZone), tone: 'normal' };
 }

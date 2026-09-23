@@ -10,10 +10,12 @@ interface Props {
   label: string;
   placeholder?: string;
   value?: string;
+  /** The page queries the API itself instead of filtering rows in place */
+  remote?: boolean;
   class?: string;
 }
 
-const { label, placeholder = 'Search…', value = '', class: className } = Astro.props;
+const { label, placeholder = 'Search…', value = '', remote = false, class: className } = Astro.props;
 ---
 
 <div class={cn('relative', className)}>
@@ -21,6 +23,7 @@ const { label, placeholder = 'Search…', value = '', class: className } = Astro
   <input
     type="search"
     data-filter-input
+    data-filter-remote={remote ? '' : undefined}
     value={value}
     placeholder={placeholder}
     aria-label={label}

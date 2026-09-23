@@ -1,49 +1,79 @@
 ---
 /**
- * Project detail — progress, tasks, people and recent activity.
+ * Project detail — GET /api/projects/:id, its tasks (GET /api/tasks?project_id=)
+ * and history (GET /api/activity?project_id=). Edit with PATCH, delete with
+ * DELETE /api/projects/:id, add tasks with POST /api/tasks.
  */
 import CalendarDays from '@lucide/astro/icons/calendar-days';
+import Clock from '@lucide/astro/icons/clock';
+import Ellipsis from '@lucide/astro/icons/ellipsis';
 import FileQuestionMark from '@lucide/astro/icons/file-question-mark';
+import Pencil from '@lucide/astro/icons/pencil';
+import Plus from '@lucide/astro/icons/plus';
 import SquareCheckBig from '@lucide/astro/icons/square-check-big';
+import Trash from '@lucide/astro/icons/trash';
 import AppLayout from '@/layouts/AppLayout.astro';
 import Avatar from '@/components/ui/Avatar.astro';
 import Button from '@/components/ui/Button.astro';
 import Card from '@/components/ui/Card.astro';
 import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import Menu from '@/components/ui/Menu.astro';
+import MenuItem from '@/components/ui/MenuItem.astro';
+import MenuSeparator from '@/components/ui/MenuSeparator.astro';
 import ProgressBar from '@/components/ui/ProgressBar.astro';
 import ActivityItem from '@/components/activity/ActivityItem.astro';
+import ProjectFormDialog from '@/components/projects/ProjectFormDialog.astro';
 import ProjectStatusBadge from '@/components/projects/ProjectStatusBadge.astro';
+import TaskFormDialog from '@/components/tasks/TaskFormDialog.astro';
 import TaskRow from '@/components/tasks/TaskRow.astro';
-import { getProjectActivity } from '@/services/activity';
-import { getProjectById } from '@/services/projects';
-import { getTasks } from '@/services/tasks';
-import { daysFromToday, formatDate } from '@/lib/dates';
+import { ApiError, serverApi } from '@/lib/api/server';
+import { formatDate, formatRelative } from '@/lib/dates';
 import { ROLE_META } from '@/lib/meta';
 import { pluralize } from '@/lib/utils';
+import type { ActivityWithRelations, Profile, ProjectWithRelations, TaskWithRelations } from '@/types';
 
 const { id = '' } = Astro.params;
 const { timeZone } = Astro.locals;
+const api = serverApi(Astro);
 
-const project = await getProjectById(id);
-if (!project) Astro.response.status = 404;
+let project: ProjectWithRelations | null = null;
+let tasks: TaskWithRelations[] = [];
+let activity: ActivityWithRelations[] = [];
+let people: Profile[] = [];
+let loadError = '';
 
-const [tasks, activity] = project
-  ? await Promise.all([getTasks({ projectId: project.id }), getProjectActivity(project.id)])
-  : [[], []];
+try {
+  [project, { data: tasks }, activity, people] = await Promise.all([
+    api.getProject(id),
+    api.getTasks({ project_id: id }),
+    api.getActivity({ project_id: id, limit: 6 }),
+    api.getProfiles(),
+  ]);
+} catch (error) {
+  if (error instanceof ApiError && error.isNotFound) Astro.response.status = 404;
+  else loadError = error instanceof Error ? error.message : 'Please try again.';
+}
 
-const daysLeft = project ? daysFromToday(project.dueDate, timeZone) : 0;
-const openTasks = tasks.filter((task) => task.status !== 'done').length;
+const openTasks = tasks.filter((task) => task.status !== 'completed').length;
+// People on the project: the owner plus everyone with a task here.
+const team = project
+  ? [project.owner, ...tasks.flatMap((task) => (task.assignee ? [task.assignee] : []))].filter(
+      (person, index, list) => list.findIndex((other) => other.id === person.id) === index,
+    )
+  : [];
 const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
 ---
 
-<AppLayout
-  title={project?.name ?? 'Project not found'}
-  breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: project?.name ?? 'Not found' }]}
->
+<AppLayout title={project?.name ?? 'Project'} breadcrumbs={[{ label: 'Projects', href: '/projects' }, { label: project?.name ?? (loadError ? 'Error' : 'Not found') }]}>
   {
-    !project ? (
+    loadError ? (
+      <div class="rounded-card border border-line bg-surface">
+        <ErrorState description={loadError} />
+      </div>
+    ) : !project ? (
       <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
-        <EmptyState title="Project not found" description={`We couldn't find ${id}. It may have been archived or the link is mistyped.`}>
+        <EmptyState title="Project not found" description="It may have been deleted, or the link is mistyped.">
           <FileQuestionMark slot="icon" aria-hidden="true" />
           <Button href="/projects" size="sm">
             Back to projects
@@ -52,13 +82,32 @@ const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
       </div>
     ) : (
       <>
-        <header>
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-xs text-fg-muted">{project.id}</span>
+        <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
             <ProjectStatusBadge status={project.status} />
+            <h1 class="mt-2.5 text-xl font-semibold tracking-tight text-fg sm:text-2xl">{project.name}</h1>
+            <p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-fg-muted">{project.description}</p>
           </div>
-          <h1 class="mt-2.5 text-xl font-semibold tracking-tight text-fg sm:text-2xl">{project.name}</h1>
-          <p class="mt-1.5 max-w-3xl text-sm leading-relaxed text-fg-muted">{project.description}</p>
+          <div class="flex shrink-0 items-center gap-2">
+            <Button data-dialog-open="project-form">
+              <Pencil class="size-3.5" aria-hidden="true" />
+              Edit
+            </Button>
+            <Button size="icon" popovertarget="project-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">
+              <Ellipsis class="size-4" aria-hidden="true" />
+            </Button>
+            <Menu id="project-more-menu" label="More actions" class="w-52">
+              <MenuItem data-dialog-open="task-form" data-project-id={project.id}>
+                <Plus slot="icon" aria-hidden="true" />
+                Add task
+              </MenuItem>
+              <MenuSeparator />
+              <MenuItem danger data-project-delete={project.id} data-name={project.name}>
+                <Trash slot="icon" aria-hidden="true" />
+                Delete project
+              </MenuItem>
+            </Menu>
+          </div>
         </header>
 
         <section aria-label="Progress" class="mt-6 rounded-card border border-line bg-surface p-5 shadow-card">
@@ -66,75 +115,69 @@ const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
             <h2 class="text-sm font-semibold text-fg">Progress</h2>
             <span class="text-2xl font-semibold tracking-tight text-fg">{project.progress}%</span>
           </div>
-          <ProgressBar
-            value={project.progress}
-            label={`${project.name} progress`}
-            tone={project.status === 'at_risk' ? 'warning' : 'accent'}
-            size="md"
-            class="mt-3"
-          />
+          <ProgressBar value={project.progress} label={`${project.name} progress`} tone={project.status === 'on_hold' ? 'warning' : 'accent'} size="md" class="mt-3" />
           <dl class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div class={stat}>
               <dt class="text-xs text-fg-muted">Owner</dt>
               <dd class="mt-1.5 flex items-center gap-2 text-[13px] font-medium text-fg">
                 <Avatar user={project.owner} size="xs" />
-                <span class="truncate">{project.owner.name}</span>
+                <span class="truncate">{project.owner.full_name}</span>
               </dd>
             </div>
             <div class={stat}>
               <dt class="text-xs text-fg-muted">Tasks</dt>
               <dd class="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
                 <SquareCheckBig class="size-3.5 text-fg-subtle" aria-hidden="true" />
-                {project.completedTaskCount} of {project.taskCount} done
+                {project.completed_task_count} of {project.task_count} completed
               </dd>
             </div>
             <div class={stat}>
               <dt class="text-xs text-fg-muted">Started</dt>
               <dd class="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
                 <CalendarDays class="size-3.5 text-fg-subtle" aria-hidden="true" />
-                {formatDate(project.startDate, timeZone)}
+                {formatDate(project.created_at, timeZone)}
               </dd>
             </div>
             <div class={stat}>
-              <dt class="text-xs text-fg-muted">Due</dt>
-              <dd class="mt-1.5 text-[13px] font-medium text-fg">
-                {formatDate(project.dueDate, timeZone)}
-                <span class:list={['ml-1 font-normal', daysLeft < 0 ? 'text-fg-subtle' : 'text-fg-muted']}>
-                  {project.status === 'completed' ? '· done' : daysLeft >= 0 ? `· ${pluralize(daysLeft, 'day')} left` : '· overdue'}
-                </span>
+              <dt class="text-xs text-fg-muted">Last update</dt>
+              <dd class="mt-1.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
+                <Clock class="size-3.5 text-fg-subtle" aria-hidden="true" />
+                {formatRelative(project.updated_at)}
               </dd>
             </div>
           </dl>
         </section>
 
         <div class="mt-5 grid gap-5 lg:grid-cols-3">
-          <Card title="Tasks" description={`${openTasks} open · ${tasks.length - openTasks} done`} flush class="lg:col-span-2">
+          <Card title="Tasks" description={`${openTasks} open · ${tasks.length - openTasks} completed`} flush class="lg:col-span-2">
+            <Button slot="actions" size="sm" data-dialog-open="task-form" data-project-id={project.id}>
+              <Plus class="size-3.5" aria-hidden="true" />
+              Add task
+            </Button>
             {tasks.length === 0 ? (
-              <EmptyState compact title="No tasks yet" description="Tasks added to this project will be listed here." />
+              <EmptyState compact title="No tasks yet" description="Break the project into tasks so progress is easy to follow.">
+                <SquareCheckBig slot="icon" aria-hidden="true" />
+              </EmptyState>
             ) : (
               <ul class="border-t border-line">
                 {tasks.map((task) => (
-                  <TaskRow task={task} timeZone={timeZone} hideProject />
+                  <TaskRow task={task} timeZone={timeZone} people={people} hideProject />
                 ))}
               </ul>
             )}
           </Card>
 
           <div class="flex min-w-0 flex-col gap-5">
-            <Card title="People" description={pluralize(project.members.length, 'member')}>
+            <Card title="People" description={pluralize(team.length, 'person', 'people')}>
               <ul class="flex flex-col gap-3">
-                {project.members.map((member) => (
+                {team.map((member) => (
                   <li class="flex items-center gap-3">
                     <Avatar user={member} size="md" />
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-[13px] font-medium text-fg">{member.name}</p>
-                      <p class="truncate text-xs text-fg-muted">{member.title}</p>
+                      <p class="truncate text-[13px] font-medium text-fg">{member.full_name}</p>
+                      <p class="truncate text-xs text-fg-muted">{member.job_title ?? ROLE_META[member.role].label}</p>
                     </div>
-                    {member.id === project.ownerId ? (
-                      <span class="text-[11px] font-medium text-accent-ink">Owner</span>
-                    ) : (
-                      <span class="text-[11px] text-fg-subtle">{ROLE_META[member.role].label}</span>
-                    )}
+                    {member.id === project!.owner_id && <span class="text-[11px] font-medium text-accent-ink">Owner</span>}
                   </li>
                 ))}
               </ul>
@@ -145,7 +188,7 @@ const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
                 <p class="text-[13px] text-fg-muted">Nothing has happened here recently.</p>
               ) : (
                 <ol class="space-y-4">
-                  {activity.slice(0, 5).map((event) => (
+                  {activity.map((event) => (
                     <li>
                       <ActivityItem event={event} timeZone={timeZone} />
                     </li>
@@ -155,6 +198,9 @@ const stat = 'rounded-lg border border-line bg-subtle/50 px-4 py-3';
             </Card>
           </div>
         </div>
+
+        <ProjectFormDialog people={people} project={project} />
+        <TaskFormDialog people={people} projects={[project]} projectId={project.id} />
       </>
     )
   }

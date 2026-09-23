@@ -3,9 +3,10 @@ import { cn } from '@/lib/utils';
 
 interface Props {
   class?: string;
+  style?: string;
 }
 
-const { class: className } = Astro.props;
+const { class: className, style } = Astro.props;
 ---
 
-<div class={cn('skeleton', className)} aria-hidden="true"></div>
+<div class={cn('skeleton', className)} style={style} aria-hidden="true"></div>

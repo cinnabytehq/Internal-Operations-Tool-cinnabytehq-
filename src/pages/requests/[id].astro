@@ -2,13 +2,17 @@
 /**
  * Request detail: what was asked, where it is in the workflow, what has to
  * happen next and everything that happened so far.
+ *
+ * Data: GET /api/requests/:id · GET /api/activity?request_id= · GET /api/profiles
+ * Changes: PATCH /api/requests/:id · POST /api/approvals/:id/approve|reject
+ *          POST /api/requests/:id/comments · DELETE /api/requests/:id
  */
 import ChevronDown from '@lucide/astro/icons/chevron-down';
 import Ellipsis from '@lucide/astro/icons/ellipsis';
-import Link from '@lucide/astro/icons/link';
-import Trash from '@lucide/astro/icons/trash';
 import FileQuestion from '@lucide/astro/icons/file-question-mark';
+import Link from '@lucide/astro/icons/link';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
+import Trash from '@lucide/astro/icons/trash';
 import UserRound from '@lucide/astro/icons/user-round';
 import AppLayout from '@/layouts/AppLayout.astro';
 import Avatar from '@/components/ui/Avatar.astro';
@@ -17,55 +21,68 @@ import Button from '@/components/ui/Button.astro';
 import Card from '@/components/ui/Card.astro';
 import Dialog from '@/components/ui/Dialog.astro';
 import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import Field from '@/components/ui/Field.astro';
 import Menu from '@/components/ui/Menu.astro';
 import MenuItem from '@/components/ui/MenuItem.astro';
 import MenuLabel from '@/components/ui/MenuLabel.astro';
 import MenuSeparator from '@/components/ui/MenuSeparator.astro';
-import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import PriorityIcon from '@/components/ui/PriorityIcon.astro';
+import Textarea from '@/components/ui/Textarea.astro';
 import CategoryIcon from '@/components/requests/CategoryIcon.astro';
 import NextStep from '@/components/requests/NextStep.astro';
 import PriorityLabel from '@/components/requests/PriorityLabel.astro';
 import RequestStatus from '@/components/requests/RequestStatus.astro';
+import RequestStatusIcon from '@/components/requests/RequestStatusIcon.astro';
 import RequestTimeline from '@/components/requests/RequestTimeline.astro';
 import RequestWorkflow from '@/components/requests/RequestWorkflow.astro';
-import TaskRow from '@/components/tasks/TaskRow.astro';
-import { getRequestById, getRequestTimeline, isBlockedByApproval } from '@/services/requests';
-import { getTasks } from '@/services/tasks';
-import { getUsers } from '@/services/users';
+import { ApiError, serverApi } from '@/lib/api/server';
 import { formatDateTime, formatRelative } from '@/lib/dates';
-import { APPROVAL_META, CATEGORY_META, REQUEST_STATUSES, REQUEST_STATUS_META } from '@/lib/meta';
+import { APPROVAL_META, CATEGORY_META, PRIORITIES, PRIORITY_META, REQUEST_STATUSES, REQUEST_STATUS_META, requestRef } from '@/lib/meta';
+import { statusChangeBlocker } from '@/lib/workflow';
+import type { ActivityWithRelations, Profile, RequestWithRelations } from '@/types';
 
 const { id = '' } = Astro.params;
-const { user, timeZone } = Astro.locals;
+const { timeZone } = Astro.locals;
+const user = Astro.locals.user as Profile;
+const api = serverApi(Astro);
 
-const request = await getRequestById(id);
-if (!request) Astro.response.status = 404;
+let request: RequestWithRelations | null = null;
+let timeline: ActivityWithRelations[] = [];
+let people: Profile[] = [];
+let loadError: string | null = null;
 
-const [timeline, tasks, users] = request
-  ? await Promise.all([getRequestTimeline(request.id), getTasks({ requestId: request.id }), getUsers()])
-  : [[], [], []];
+try {
+  [request, timeline, people] = await Promise.all([
+    api.getRequest(id),
+    api.getActivity({ request_id: id }).then((events) => events.reverse()),
+    api.getProfiles(),
+  ]);
+} catch (error) {
+  if (error instanceof ApiError && error.isNotFound) Astro.response.status = 404;
+  else loadError = error instanceof Error ? error.message : 'Please try again.';
+}
 
-const statusColors = {
-  new: 'text-status-new',
-  in_review: 'text-status-review',
-  in_progress: 'text-status-progress',
-  completed: 'text-status-done',
-} as const;
+const ref = request ? requestRef(request.number) : 'Request';
+const approval = request?.approval ?? null;
+const canDecide = approval?.status === 'pending' && (approval.approver_id === user.id || user.role === 'admin');
 const dt = 'text-[13px] text-fg-muted';
 const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[13px] text-fg';
+const inlineMenuTrigger = '-mr-1.5 inline-flex h-7 max-w-full items-center gap-2 rounded-md px-1.5 transition-colors hover:bg-subtle';
 ---
 
 <AppLayout
-  title={request ? `${request.id} · ${request.title}` : 'Request not found'}
-  breadcrumbs={[{ label: 'Requests', href: '/requests' }, { label: request?.id ?? 'Not found' }]}
+  title={request ? `${ref} · ${request.title}` : 'Request'}
+  breadcrumbs={[{ label: 'Requests', href: '/requests' }, { label: request ? ref : loadError ? 'Error' : 'Not found' }]}
 >
   {
-    !request ? (
+    loadError ? (
+      <div class="rounded-card border border-line bg-surface">
+        <ErrorState description={loadError} />
+      </div>
+    ) : !request ? (
       <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
-        <EmptyState
-          title="Request not found"
-          description={`We couldn't find ${id}. It may have been deleted, or the link might be mistyped.`}
-        >
+        <EmptyState title="Request not found" description="It may have been deleted, or the link might be mistyped.">
           <FileQuestion slot="icon" aria-hidden="true" />
           <Button href="/requests" size="sm">
             Back to requests
@@ -73,12 +90,12 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
         </EmptyState>
       </div>
     ) : (
-      <div data-request-id={request.id}>
+      <div data-request-id={request.id} data-approval-id={approval?.status === 'pending' ? approval.id : undefined}>
         {/* ── Header ── */}
         <header class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-              <span class="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-fg-muted">{request.id}</span>
+              <span class="rounded-md border border-line bg-surface px-1.5 py-0.5 font-mono text-fg-muted">{ref}</span>
               <span class="flex items-center gap-1.5">
                 <CategoryIcon category={request.category} />
                 {CATEGORY_META[request.category].label}
@@ -86,9 +103,9 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
             </div>
             <h1 class="mt-2.5 text-xl font-semibold tracking-tight text-balance text-fg sm:text-2xl">{request.title}</h1>
             <p class="mt-1.5 text-[13px] text-fg-muted">
-              Opened by <span class="font-medium text-fg">{request.requester.name}</span> ·{' '}
-              <time datetime={request.createdAt} title={formatDateTime(request.createdAt, timeZone)}>
-                {formatRelative(request.createdAt)}
+              Opened by <span class="font-medium text-fg">{request.requester.full_name}</span> ·{' '}
+              <time datetime={request.created_at} title={formatDateTime(request.created_at, timeZone)}>
+                {formatRelative(request.created_at)}
               </time>
             </p>
           </div>
@@ -108,15 +125,15 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
             <Menu id="request-status-menu" label="Change status" class="w-72">
               <MenuLabel>Move to</MenuLabel>
               {REQUEST_STATUSES.map((status) => {
-                const blocked = status !== request.status && isBlockedByApproval(request, request.approval, status);
+                const blocker = statusChangeBlocker(request!, approval, status);
                 return (
-                  <MenuItem data-request-status={status} checked={status === request.status} disabled={blocked}>
-                    <PipelineIcon slot="icon" step={REQUEST_STATUS_META[status].step} total={4} class={statusColors[status]} />
+                  <MenuItem data-request-status={status} checked={status === request!.status} disabled={Boolean(blocker)} title={blocker ?? undefined}>
+                    <RequestStatusIcon slot="icon" status={status} />
                     {REQUEST_STATUS_META[status].label}
-                    {blocked && (
+                    {blocker && (
                       <span slot="hint" class="flex items-center gap-1 text-[11px] text-fg-subtle">
                         <ShieldCheck class="size-3!" aria-hidden="true" />
-                        Needs approval
+                        {approval?.status === 'pending' ? 'Awaiting approval' : 'Needs approval'}
                       </span>
                     )}
                   </MenuItem>
@@ -124,13 +141,7 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
               })}
             </Menu>
 
-            <Button
-              size="icon"
-              popovertarget="request-more-menu"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              aria-label="More actions"
-            >
+            <Button size="icon" popovertarget="request-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="More actions">
               <Ellipsis class="size-4" aria-hidden="true" />
             </Button>
             <Menu id="request-more-menu" label="More actions" class="w-52">
@@ -172,14 +183,24 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
               <dl class="-mt-1 divide-y divide-line">
                 <div class="flex items-center justify-between gap-4 py-2.5">
                   <dt class={dt}>Status</dt>
-                  <dd class={dd}>
-                    <RequestStatus status={request.status} />
-                  </dd>
+                  <dd class={dd}><RequestStatus status={request.status} /></dd>
                 </div>
-                <div class="flex items-center justify-between gap-4 py-2.5">
+                <div class="flex items-center justify-between gap-4 py-2">
                   <dt class={dt}>Priority</dt>
                   <dd class={dd}>
-                    <PriorityLabel priority={request.priority} class="text-fg" />
+                    <button type="button" popovertarget="request-priority-menu" aria-haspopup="menu" aria-expanded="false" aria-label={`Priority: ${PRIORITY_META[request.priority].label}. Change priority`} class={inlineMenuTrigger}>
+                      <PriorityLabel priority={request.priority} class="text-fg" />
+                      <ChevronDown class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
+                    </button>
+                    <Menu id="request-priority-menu" label="Priority" class="w-44">
+                      <MenuLabel>Priority</MenuLabel>
+                      {PRIORITIES.map((priority) => (
+                        <MenuItem data-request-priority={priority} checked={priority === request!.priority}>
+                          <PriorityIcon slot="icon" priority={priority} />
+                          {PRIORITY_META[priority].label}
+                        </MenuItem>
+                      ))}
+                    </Menu>
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 py-2.5">
@@ -190,7 +211,7 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
                   <dt class={dt}>Requester</dt>
                   <dd class={dd}>
                     <Avatar user={request.requester} size="xs" />
-                    <span class="truncate">{request.requester.name}</span>
+                    <span class="truncate">{request.requester.full_name}</span>
                   </dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 py-2">
@@ -201,32 +222,34 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
                       popovertarget="request-assignee-menu"
                       aria-haspopup="menu"
                       aria-expanded="false"
-                      aria-label={`Assignee: ${request.assignee?.name ?? 'Unassigned'}. Change assignee`}
-                      class="-mr-1.5 inline-flex h-7 max-w-full items-center gap-2 rounded-md px-1.5 transition-colors hover:bg-subtle"
+                      aria-label={`Assignee: ${request.assignee?.full_name ?? 'Unassigned'}. Change assignee`}
+                      class={inlineMenuTrigger}
                     >
                       {request.assignee ? (
                         <>
                           <Avatar user={request.assignee} size="xs" />
-                          <span class="truncate">{request.assignee.name}</span>
+                          <span class="truncate">{request.assignee.full_name}</span>
                         </>
                       ) : (
                         <span class="text-fg-subtle">Unassigned</span>
                       )}
                       <ChevronDown class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
                     </button>
-                    <Menu id="request-assignee-menu" label="Assign to" class="w-60">
+                    <Menu id="request-assignee-menu" label="Assign to" class="w-64">
                       <MenuLabel>Assign to</MenuLabel>
-                      {users.map((member) => (
-                        <MenuItem data-request-assignee={member.id} checked={member.id === request.assigneeId}>
+                      {people.map((member) => (
+                        <MenuItem data-request-assignee={member.id} data-name={member.full_name} checked={member.id === request!.assignee_id}>
                           <Avatar slot="icon" user={member} size="xs" />
-                          {member.name}
-                          <span slot="hint" class="text-[11px] text-fg-subtle">
-                            {member.team}
-                          </span>
+                          {member.full_name}
+                          {member.team && (
+                            <span slot="hint" class="text-[11px] text-fg-subtle">
+                              {member.team}
+                            </span>
+                          )}
                         </MenuItem>
                       ))}
                       <MenuSeparator />
-                      <MenuItem data-request-assignee="" checked={!request.assigneeId}>
+                      <MenuItem data-request-assignee="" checked={!request.assignee_id}>
                         <UserRound slot="icon" aria-hidden="true" />
                         Unassigned
                       </MenuItem>
@@ -235,54 +258,83 @@ const dd = 'flex min-w-0 flex-1 items-center justify-end gap-2 text-right text-[
                 </div>
                 <div class="flex items-center justify-between gap-4 py-2.5">
                   <dt class={dt}>Created</dt>
-                  <dd class={dd}>{formatDateTime(request.createdAt, timeZone)}</dd>
+                  <dd class={dd}>{formatDateTime(request.created_at, timeZone)}</dd>
                 </div>
                 <div class="flex items-center justify-between gap-4 pt-2.5">
                   <dt class={dt}>Updated</dt>
-                  <dd class={dd}>{formatRelative(request.updatedAt)}</dd>
+                  <dd class={dd}>
+                    <time datetime={request.updated_at} title={formatDateTime(request.updated_at, timeZone)}>{formatRelative(request.updated_at)}</time>
+                  </dd>
                 </div>
               </dl>
             </Card>
 
-            {request.approval && (
+            {approval && (
               <Card title="Approval">
                 <div class="flex items-center gap-3">
-                  <Avatar user={request.approval.approver} size="md" />
+                  <Avatar user={approval.approver} size="md" />
                   <div class="min-w-0 flex-1">
-                    <p class="truncate text-[13px] font-medium text-fg">{request.approval.approver.name}</p>
-                    <p class="truncate text-xs text-fg-muted">{request.approval.approver.title}</p>
+                    <p class="truncate text-[13px] font-medium text-fg">{approval.approver.full_name}</p>
+                    <p class="truncate text-xs text-fg-muted">{approval.approver.job_title ?? 'Approver'}</p>
                   </div>
-                  <Badge tone={request.approval.status === 'approved' ? 'success' : 'warning'}>
+                  <Badge tone={approval.status === 'approved' ? 'success' : approval.status === 'rejected' ? 'neutral' : 'warning'}>
                     <ShieldCheck aria-hidden="true" />
-                    {APPROVAL_META[request.approval.status].label}
+                    {APPROVAL_META[approval.status].label}
                   </Badge>
                 </div>
+                {approval.comment && (
+                  <p class="mt-3 rounded-md border border-line bg-subtle/60 px-3 py-2 text-[13px] text-fg">“{approval.comment}”</p>
+                )}
                 <p class="mt-3 text-xs text-fg-muted">
-                  {request.approval.decidedAt
-                    ? `Decided ${formatDateTime(request.approval.decidedAt, timeZone)}`
-                    : `Requested ${formatRelative(request.approval.requestedAt)} · ${CATEGORY_META[request.category].label} requests need sign-off`}
+                  {approval.approved_at
+                    ? `Decided ${formatDateTime(approval.approved_at, timeZone)}`
+                    : `Requested ${formatRelative(approval.created_at)} · ${CATEGORY_META[request.category].label} requests need sign-off`}
                 </p>
+                {canDecide && (
+                  <div class="mt-4 grid grid-cols-2 gap-2">
+                    <Button variant="primary" size="sm" data-approval-approve={approval.id}>
+                      Approve
+                    </Button>
+                    <Button size="sm" data-dialog-open="reject-approval">
+                      Reject
+                    </Button>
+                  </div>
+                )}
               </Card>
             )}
-
-            <Card title="Related tasks" flush>
-              {tasks.length === 0 ? (
-                <p class="px-5 pb-5 text-[13px] text-fg-muted">No tasks have been created from this request.</p>
-              ) : (
-                <ul class="px-5 pb-2">
-                  {tasks.map((task) => (
-                    <TaskRow task={task} timeZone={timeZone} variant="compact" />
-                  ))}
-                </ul>
-              )}
-            </Card>
           </aside>
         </div>
 
         <Dialog
+          id="reject-approval"
+          title="Reject this request?"
+          description={`${ref} will be closed as rejected and ${request.requester.full_name} will see your reason.`}
+          size="sm"
+        >
+          <form id="reject-form" novalidate>
+            <Field label="Reason" for="reject-reason">
+              <Textarea
+                id="reject-reason"
+                name="comment"
+                rows="3"
+                maxlength="1000"
+                required
+                autofocus
+                placeholder="e.g. Not in this quarter's budget — please resubmit in January."
+                aria-describedby="reject-reason-error"
+              />
+            </Field>
+          </form>
+          <Fragment slot="footer">
+            <Button data-dialog-close>Cancel</Button>
+            <Button variant="danger" type="submit" form="reject-form">Reject request</Button>
+          </Fragment>
+        </Dialog>
+
+        <Dialog
           id="delete-request"
           title="Delete this request?"
-          description={`${request.id} and its approval will be removed. Its history stays in the activity log. This can't be undone.`}
+          description={`${ref} and its approval will be removed. Its history stays in the activity log. This can't be undone.`}
           size="sm"
         >
           <p class="rounded-md border border-line bg-subtle/60 px-3 py-2 text-[13px] font-medium text-fg">{request.title}</p>

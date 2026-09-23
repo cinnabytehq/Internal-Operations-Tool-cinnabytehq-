@@ -1,6 +1,6 @@
 /**
  * Unread state for the notifications panel, stored per browser.
- * TODO(api): replace with read receipts from PATCH /api/me/notifications.
+ * TODO(api): replace with read receipts from a future POST /api/notifications/read.
  */
 import { readStorage, writeStorage } from './ui';
 

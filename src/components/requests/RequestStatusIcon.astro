@@ -1,0 +1,30 @@
+---
+/** The status glyph for a request: pipeline ring (or a cross when rejected). */
+import type { RequestStatus } from '@/types';
+import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import { REQUEST_STATUS_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  status: RequestStatus;
+  size?: number;
+  class?: string;
+}
+
+const { status, size = 14, class: className } = Astro.props;
+const colors: Record<RequestStatus, string> = {
+  new: 'text-status-new',
+  in_review: 'text-status-review',
+  in_progress: 'text-status-progress',
+  completed: 'text-status-done',
+  rejected: 'text-status-rejected',
+};
+---
+
+<PipelineIcon
+  step={REQUEST_STATUS_META[status].step}
+  total={4}
+  size={size}
+  rejected={status === 'rejected'}
+  class={cn(colors[status], className)}
+/>

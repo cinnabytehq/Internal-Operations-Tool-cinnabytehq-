@@ -2,9 +2,9 @@
 /**
  * Bell + notifications panel. Read/unread state is kept per browser in
  * localStorage for now (see src/scripts/notifications.ts).
- * TODO(api): persist "read" state with PATCH /api/me/notifications.
+ * TODO(api): persist "read" state (e.g. a notification_reads table + POST /api/notifications/read).
  */
-import type { ActivityWithActor } from '@/types';
+import type { ActivityWithRelations } from '@/types';
 import Bell from '@lucide/astro/icons/bell';
 import BellOff from '@lucide/astro/icons/bell-off';
 import Avatar from '@/components/ui/Avatar.astro';
@@ -15,7 +15,7 @@ import ActivityText from '@/components/activity/ActivityText.astro';
 import { formatRelative } from '@/lib/dates';
 
 interface Props {
-  notifications: ActivityWithActor[];
+  notifications: ActivityWithRelations[];
 }
 
 const { notifications } = Astro.props;
@@ -62,13 +62,13 @@ const { notifications } = Astro.props;
             <a
               href={event.href ?? '/activity'}
               data-notification
-              data-created-at={event.createdAt}
+              data-created-at={event.created_at}
               class="group relative flex gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-subtle"
             >
-              <Avatar user={event.actor} size="md" />
+              {event.user ? <Avatar user={event.user} size="md" /> : <span class="size-8 shrink-0 rounded-full bg-muted" />}
               <span class="min-w-0 flex-1">
-                <ActivityText event={{ ...event, href: null }} class="line-clamp-2" />
-                <span class="mt-0.5 block text-xs text-fg-subtle">{formatRelative(event.createdAt)}</span>
+                <ActivityText event={event} plain class="line-clamp-2" />
+                <span class="mt-0.5 block text-xs text-fg-subtle">{formatRelative(event.created_at)}</span>
               </span>
               <span
                 data-unread-indicator

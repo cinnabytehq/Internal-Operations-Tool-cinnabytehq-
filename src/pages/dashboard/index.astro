@@ -1,8 +1,9 @@
 ---
 /**
  * Overview dashboard. The page shell renders immediately; each section is
- * a server island that streams in behind a skeleton — the same experience
- * users will get once the data comes from a real API.
+ * a server island that fetches its data from the REST API (GET
+ * /api/dashboard, /api/activity, /api/tasks, /api/projects) and streams in
+ * behind a skeleton.
  */
 import Plus from '@lucide/astro/icons/plus';
 import ArrowRight from '@lucide/astro/icons/arrow-right';
@@ -19,8 +20,11 @@ import RequestOverview from '@/components/dashboard/RequestOverview.astro';
 import RequestOverviewSkeleton from '@/components/dashboard/RequestOverviewSkeleton.astro';
 import { formatLongDate, greeting } from '@/lib/dates';
 import { firstName } from '@/lib/utils';
+import type { Profile } from '@/types';
 
-const { user, timeZone } = Astro.locals;
+const { timeZone } = Astro.locals;
+// The middleware only lets this page render when a (dev) user resolved.
+const user = Astro.locals.user as Profile;
 const today = new Date().toISOString();
 const viewAll =
   'inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted transition-colors hover:bg-subtle hover:text-fg';
@@ -31,7 +35,7 @@ const viewAll =
     <div>
       <p class="text-[13px] text-fg-subtle">{formatLongDate(today, timeZone)}</p>
       <h1 class="mt-1 text-2xl font-semibold tracking-tight text-fg">
-        {greeting(timeZone)}, {firstName(user.name)}
+        {greeting(timeZone)}, {firstName(user.full_name)}
       </h1>
       <p class="mt-1 text-sm text-fg-muted">Here's what's happening across your workspace.</p>
     </div>

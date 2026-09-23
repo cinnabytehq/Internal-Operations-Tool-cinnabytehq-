@@ -3,14 +3,14 @@
  * Compact activity row: avatar, sentence, detail and relative time.
  * Used on the dashboard, in notifications and on project pages.
  */
-import type { ActivityWithActor } from '@/types';
+import type { ActivityWithRelations } from '@/types';
 import Avatar from '@/components/ui/Avatar.astro';
 import { formatDateTime, formatRelative } from '@/lib/dates';
 import ActivityDetail from './ActivityDetail.astro';
 import ActivityText from './ActivityText.astro';
 
 interface Props {
-  event: ActivityWithActor;
+  event: ActivityWithRelations;
   timeZone: string;
   showDetail?: boolean;
 }
@@ -19,12 +19,12 @@ const { event, timeZone, showDetail = true } = Astro.props;
 ---
 
 <div class="flex gap-3">
-  <Avatar user={event.actor} size="md" class="mt-0.5" />
+  {event.user ? <Avatar user={event.user} size="md" class="mt-0.5" /> : <span class="mt-0.5 size-8 shrink-0 rounded-full bg-muted" />}
   <div class="min-w-0 flex-1">
     <ActivityText event={event} />
     {showDetail && <ActivityDetail event={event} clamp />}
-    <time datetime={event.createdAt} title={formatDateTime(event.createdAt, timeZone)} class="mt-1 block text-xs text-fg-subtle">
-      {formatRelative(event.createdAt)}
+    <time datetime={event.created_at} title={formatDateTime(event.created_at, timeZone)} class="mt-1 block text-xs text-fg-subtle">
+      {formatRelative(event.created_at)}
     </time>
   </div>
 </div>

@@ -1,28 +1,24 @@
 ---
 /**
- * Request overview (server island): how requests are spread across the
- * workflow, plus the few that need attention right now.
+ * Request overview (server island) — from GET /api/dashboard: how requests
+ * are spread across the workflow, plus the few that need attention now.
  */
 import Avatar from '@/components/ui/Avatar.astro';
 import EmptyState from '@/components/ui/EmptyState.astro';
 import ErrorState from '@/components/ui/ErrorState.astro';
-import PipelineIcon from '@/components/ui/PipelineIcon.astro';
-import { getDashboardSummary } from '@/services/dashboard';
-import { getRequests } from '@/services/requests';
+import RequestStatusIcon from '@/components/requests/RequestStatusIcon.astro';
+import { serverApi } from '@/lib/api/server';
 import { formatRelative } from '@/lib/dates';
-import { REQUEST_STATUS_META } from '@/lib/meta';
+import { REQUEST_STATUS_META, requestRef } from '@/lib/meta';
 import { cn, percent, pluralize } from '@/lib/utils';
-import type { RequestStatus, RequestWithRelations } from '@/types';
+import type { DashboardSummary, RequestStatus } from '@/types';
 
-let data: Awaited<ReturnType<typeof load>> | null = null;
-async function load() {
-  const [summary, requests] = await Promise.all([getDashboardSummary(), getRequests()]);
-  return { summary, requests };
-}
+let summary: DashboardSummary | null = null;
+let loadError = '';
 try {
-  data = await load();
-} catch {
-  data = null;
+  summary = await serverApi(Astro).getDashboard();
+} catch (error) {
+  loadError = error instanceof Error ? error.message : '';
 }
 
 const fills: Record<RequestStatus, string> = {
@@ -30,41 +26,20 @@ const fills: Record<RequestStatus, string> = {
   in_review: 'bg-status-review',
   in_progress: 'bg-status-progress',
   completed: 'bg-status-done',
-};
-const icons: Record<RequestStatus, string> = {
-  new: 'text-status-new',
-  in_review: 'text-status-review',
-  in_progress: 'text-status-progress',
-  completed: 'text-status-done',
+  rejected: 'bg-status-rejected',
 };
 
-/** Why a request is in "Needs attention" (first matching reason wins). */
-function attentionReason(request: RequestWithRelations): string | null {
-  if (request.status === 'completed') return null;
-  if (request.approval?.status === 'pending') return `Awaiting ${request.approval.approver.name.split(' ')[0]}`;
-  if (!request.assignee) return 'Unassigned';
-  if (request.priority === 'high') return 'High priority';
-  if (request.status === 'new') return 'Needs triage';
-  return null;
-}
-
-const attention = (data?.requests ?? [])
-  .map((request) => ({ request, reason: attentionReason(request) }))
-  .filter((item): item is { request: RequestWithRelations; reason: string } => item.reason !== null)
-  .slice(0, 4);
-const total = data?.summary.total ?? 0;
-const open = data ? total - (data.summary.statusBreakdown.find((item) => item.status === 'completed')?.count ?? 0) : 0;
+const total = summary?.total ?? 0;
+const open = summary?.active_requests.count ?? 0;
+// Only show "Rejected" in the legend when there is something to show.
+const breakdown = summary?.status_breakdown.filter((item) => item.status !== 'rejected' || item.count > 0) ?? [];
 ---
 
 {
-  !data ? (
-    <ErrorState compact description="We couldn't load the request overview." />
+  !summary ? (
+    <ErrorState compact description={loadError || "We couldn't load the request overview."} />
   ) : total === 0 ? (
-    <EmptyState
-      compact
-      title="No requests yet"
-      description="When your team submits an internal request, it will appear here."
-    />
+    <EmptyState compact title="No requests yet" description="When your team submits an internal request, it will appear here." />
   ) : (
     <div class="animate-fade-in">
       <p class="-mt-2 mb-4 text-[13px] text-fg-muted">
@@ -72,8 +47,12 @@ const open = data ? total - (data.summary.statusBreakdown.find((item) => item.st
       </p>
 
       {/* Part-to-whole bar: 2px surface gaps, rounded data ends */}
-      <div class="flex h-2.5 gap-0.5" role="img" aria-label={data.summary.statusBreakdown.map((item) => `${REQUEST_STATUS_META[item.status].label}: ${item.count}`).join(', ')}>
-        {data.summary.statusBreakdown
+      <div
+        class="flex h-2.5 gap-0.5"
+        role="img"
+        aria-label={breakdown.map((item) => `${REQUEST_STATUS_META[item.status].label}: ${item.count}`).join(', ')}
+      >
+        {breakdown
           .filter((item) => item.count > 0)
           .map((item) => (
             <div
@@ -88,11 +67,11 @@ const open = data ? total - (data.summary.statusBreakdown.find((item) => item.st
       </div>
 
       {/* Legend doubles as the data table */}
-      <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
-        {data.summary.statusBreakdown.map((item) => (
+      <dl class:list={['mt-4 grid grid-cols-2 gap-x-4 gap-y-4', breakdown.length > 4 ? 'sm:grid-cols-5' : 'sm:grid-cols-4']}>
+        {breakdown.map((item) => (
           <div>
             <dt class="flex items-center gap-1.5 text-xs text-fg-muted">
-              <PipelineIcon step={REQUEST_STATUS_META[item.status].step} total={4} size={12} class={icons[item.status]} />
+              <RequestStatusIcon status={item.status} size={12} />
               {REQUEST_STATUS_META[item.status].label}
             </dt>
             <dd class="mt-1 flex items-baseline gap-1.5">
@@ -105,21 +84,18 @@ const open = data ? total - (data.summary.statusBreakdown.find((item) => item.st
 
       <div class="mt-5 border-t border-line pt-4">
         <h3 class="text-xs font-medium text-fg-muted">Needs attention</h3>
-        {attention.length === 0 ? (
+        {summary.needs_attention.length === 0 ? (
           <p class="py-4 text-[13px] text-fg-muted">Nothing is blocked. Nice work.</p>
         ) : (
           <ul class="-mx-2 mt-1.5">
-            {attention.map(({ request, reason }) => (
+            {summary.needs_attention.map(({ request, reason }) => (
               <li>
-                <a
-                  href={`/requests/${request.id}`}
-                  class="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-subtle"
-                >
-                  <PipelineIcon step={REQUEST_STATUS_META[request.status].step} total={4} class={icons[request.status]} />
+                <a href={`/requests/${request.id}`} class="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-subtle">
+                  <RequestStatusIcon status={request.status} />
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-[13px] font-medium text-fg">{request.title}</span>
                     <span class="mt-0.5 flex items-center gap-1.5 text-xs text-fg-subtle">
-                      <span class="font-mono">{request.id}</span>
+                      <span class="font-mono">{requestRef(request.number)}</span>
                       <span aria-hidden="true">·</span>
                       <span class={cn(reason === 'High priority' && 'text-danger-ink', reason.startsWith('Awaiting') && 'text-warning-ink')}>
                         {reason}
@@ -127,7 +103,7 @@ const open = data ? total - (data.summary.statusBreakdown.find((item) => item.st
                     </span>
                   </span>
                   {request.assignee && <Avatar user={request.assignee} labelled />}
-                  <span class="hidden w-14 text-right text-xs text-fg-subtle sm:block">{formatRelative(request.updatedAt)}</span>
+                  <span class="hidden w-14 text-right text-xs text-fg-subtle sm:block">{formatRelative(request.updated_at)}</span>
                 </a>
               </li>
             ))}

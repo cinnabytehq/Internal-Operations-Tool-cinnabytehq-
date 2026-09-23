@@ -17,6 +17,16 @@ export function initials(name: string): string {
   return (first + last).toUpperCase();
 }
 
+export const AVATAR_COLORS = ['emerald', 'sky', 'amber', 'rose', 'violet', 'slate'] as const;
+export type AvatarColor = (typeof AVATAR_COLORS)[number];
+
+/** A stable colour for someone's initials avatar, derived from their id. */
+export function avatarColor(seed: string): AvatarColor {
+  let hash = 0;
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
+
 /** "Alex Johnson" → "Alex" */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name;

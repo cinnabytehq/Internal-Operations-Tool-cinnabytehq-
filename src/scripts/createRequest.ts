@@ -1,29 +1,32 @@
 /**
- * "New request" form: validation, submission and feedback.
+ * "New request" form: validation, submission (POST /api/requests) and
+ * feedback.
  *
- * Validation runs in the browser for instant feedback; the server
- * re-validates everything in the `requests.create` action (the source of
- * truth), and any field errors it returns are shown the same way.
+ * Validation runs in the browser for instant feedback; the API validates
+ * again (the source of truth) and its per-field messages are shown the same
+ * way. On the Requests page the list refreshes in place; anywhere else we
+ * open the new request.
  */
-import { actions, isInputError } from 'astro:actions';
-import type { Priority, RequestCategory } from '@/types';
-import { flashToast, toastError } from './toast';
+import type { CreateRequestInput, Priority, RequestCategory, RequestWithRelations } from '@/types';
+import { requestRef } from '@/lib/meta';
+import { ApiError, api } from '@/lib/api/browser';
+import { flashToast, toast, toastError } from './toast';
 import { setLoading } from './ui';
 
 type FieldName = 'title' | 'description' | 'category';
 
 const RULES: Record<FieldName, (value: string) => string | null> = {
   title: (value) => {
-    if (value.trim().length < 4) return 'Give the request a title of at least 4 characters.';
-    if (value.trim().length > 120) return 'Keep the title under 120 characters.';
+    if (value.trim().length < 4) return 'Title must be at least 4 characters.';
+    if (value.trim().length > 120) return 'Title must be at most 120 characters.';
     return null;
   },
-  description: (value) => {
-    if (value.trim().length < 10) return 'Add a short description (at least 10 characters).';
-    return null;
-  },
+  description: (value) => (value.trim().length < 10 ? 'Description must be at least 10 characters.' : null),
   category: (value) => (value ? null : 'Choose a category.'),
 };
+
+/** Fired on `document` after a request is created (the Requests page listens). */
+export const REQUEST_CREATED_EVENT = 'cinnabyte:request-created';
 
 export function initCreateRequest(): void {
   const form = document.getElementById('create-request-form') as HTMLFormElement | null;
@@ -33,10 +36,12 @@ export function initCreateRequest(): void {
   const submitButton = dialog.querySelector<HTMLButtonElement>('button[type="submit"]');
   const charCount = form.querySelector<HTMLElement>('[data-char-count]');
   const approvalHint = form.querySelector<HTMLElement>('[data-approval-hint]');
-  const control = (name: FieldName) => form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+  const control = (name: string) =>
+    form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
 
-  function setError(name: FieldName, message: string | null) {
+  function setError(name: string, message: string | null) {
     const element = control(name);
+    if (!element) return;
     const errorEl = form!.querySelector<HTMLElement>(`[data-error-for="${element.id}"]`);
     if (errorEl) errorEl.textContent = message ?? '';
     if (message) element.setAttribute('aria-invalid', 'true');
@@ -46,7 +51,7 @@ export function initCreateRequest(): void {
   function validate(): boolean {
     let firstInvalid: HTMLElement | null = null;
     for (const name of Object.keys(RULES) as FieldName[]) {
-      const message = RULES[name](control(name).value);
+      const message = RULES[name](control(name)?.value ?? '');
       setError(name, message);
       if (message && !firstInvalid) firstInvalid = control(name);
     }
@@ -54,22 +59,19 @@ export function initCreateRequest(): void {
     return firstInvalid === null;
   }
 
-  function updateCharCount() {
-    if (charCount) charCount.textContent = `${control('description').value.length} / 2000`;
-  }
-
-  function updateApprovalHint() {
-    const select = control('category') as HTMLSelectElement;
-    const option = select.selectedOptions[0];
+  const updateCharCount = () => {
+    if (charCount) charCount.textContent = `${control('description')?.value.length ?? 0} / 2000`;
+  };
+  const updateApprovalHint = () => {
+    const option = (control('category') as HTMLSelectElement | null)?.selectedOptions[0];
     if (approvalHint) approvalHint.hidden = option?.dataset.requiresApproval !== 'true';
-  }
+  };
 
-  // Clear an error as soon as the field is fixed.
   form.addEventListener('input', (event) => {
     const target = event.target as HTMLInputElement;
-    const name = target.name as FieldName;
-    if (name in RULES && target.hasAttribute('aria-invalid') && !RULES[name](target.value)) setError(name, null);
-    if (name === 'description') updateCharCount();
+    const rule = RULES[target.name as FieldName];
+    if (rule && target.hasAttribute('aria-invalid') && !rule(target.value)) setError(target.name, null);
+    if (target.name === 'description') updateCharCount();
   });
   form.addEventListener('change', (event) => {
     const target = event.target as HTMLSelectElement;
@@ -84,32 +86,40 @@ export function initCreateRequest(): void {
     if (!validate()) return;
 
     const data = new FormData(form);
-    setLoading(submitButton, true);
-    const { data: request, error } = await actions.requests.create({
-      title: String(data.get('title')),
-      description: String(data.get('description')),
+    const input: CreateRequestInput = {
+      title: String(data.get('title')).trim(),
+      description: String(data.get('description')).trim(),
       category: data.get('category') as RequestCategory,
       priority: (data.get('priority') ?? 'medium') as Priority,
-      assigneeId: String(data.get('assigneeId') ?? '') || undefined,
-    });
+      assignee_id: String(data.get('assignee_id') ?? '') || null,
+    };
 
-    if (error) {
+    setLoading(submitButton, true);
+    let request: RequestWithRelations;
+    try {
+      request = await api.createRequest(input);
+    } catch (error) {
       setLoading(submitButton, false);
-      if (isInputError(error)) {
-        for (const [name, messages] of Object.entries(error.fields)) {
-          if (name in RULES) setError(name as FieldName, (messages as string[])[0] ?? null);
-        }
-        return;
+      if (error instanceof ApiError && error.fields) {
+        for (const [name, message] of Object.entries(error.fields)) setError(name, message);
+        if (Object.keys(error.fields).some((name) => name in RULES)) return;
       }
-      toastError(error);
+      toastError(error, "Couldn't create the request");
       return;
     }
 
-    flashToast({ title: 'Request created successfully', description: `${request.id} · ${request.title}` });
-    window.location.href = `/requests/${request.id}`;
+    const message = { title: 'Request created successfully', description: `${requestRef(request.number)} · ${request.title}` };
+    const onRequestsPage = document.querySelector('[data-requests-app]');
+    if (onRequestsPage) {
+      dialog.close();
+      document.dispatchEvent(new CustomEvent<RequestWithRelations>(REQUEST_CREATED_EVENT, { detail: request }));
+      toast({ ...message, action: { label: 'Open request', href: `/requests/${request.id}` } });
+    } else {
+      flashToast(message);
+      window.location.href = `/requests/${request.id}`;
+    }
   });
 
-  // Start fresh every time the dialog closes.
   dialog.addEventListener('close', () => {
     form.reset();
     (Object.keys(RULES) as FieldName[]).forEach((name) => setError(name, null));

@@ -1,30 +1,37 @@
 ---
 /**
- * Projects — compact cards with progress, status and ownership.
+ * Projects — GET /api/projects, create with POST /api/projects.
  */
 import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import Plus from '@lucide/astro/icons/plus';
 import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
 import EmptyState from '@/components/ui/EmptyState.astro';
 import ErrorState from '@/components/ui/ErrorState.astro';
 import PageHeader from '@/components/ui/PageHeader.astro';
 import Tabs from '@/components/ui/Tabs.astro';
 import ProjectCard from '@/components/projects/ProjectCard.astro';
-import { getProjects } from '@/services/projects';
-import type { ProjectWithRelations } from '@/types';
+import ProjectFormDialog from '@/components/projects/ProjectFormDialog.astro';
+import { serverApi } from '@/lib/api/server';
+import type { Profile, ProjectWithRelations } from '@/types';
 
-const filter = Astro.url.searchParams.get('filter') === 'completed' ? 'completed' : Astro.url.searchParams.get('filter') === 'active' ? 'active' : 'all';
+const filter = ['active', 'completed'].includes(Astro.url.searchParams.get('filter') ?? '') ? Astro.url.searchParams.get('filter')! : 'all';
+const user = Astro.locals.user as Profile;
+const api = serverApi(Astro);
 
 let projects: ProjectWithRelations[] | null = null;
+let people: Profile[] = [];
+let loadError = '';
 try {
-  projects = await getProjects();
-} catch {
-  projects = null;
+  [projects, people] = await Promise.all([api.getProjects(), api.getProfiles()]);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : 'Please try again.';
 }
 
 const active = projects?.filter((project) => project.status !== 'completed') ?? [];
 const completed = projects?.filter((project) => project.status === 'completed') ?? [];
 const visible = filter === 'active' ? active : filter === 'completed' ? completed : (projects ?? []);
-const atRisk = active.filter((project) => project.status === 'at_risk').length;
+const onHold = active.filter((project) => project.status === 'on_hold').length;
 
 const tabs = [
   { label: 'All', href: '/projects', active: filter === 'all', count: projects?.length },
@@ -37,9 +44,14 @@ const tabs = [
   <PageHeader
     title="Projects"
     description={projects
-      ? `${active.length} active${atRisk ? ` · ${atRisk} at risk` : ''} · progress is reported by each project owner.`
+      ? `${active.length} active${onHold ? ` · ${onHold} on hold` : ''} · progress is reported by each project owner.`
       : 'Everything your team is building, at a glance.'}
-  />
+  >
+    <Button slot="actions" variant="primary" data-dialog-open="project-form" class="max-sm:w-full">
+      <Plus class="size-4" aria-hidden="true" />
+      New project
+    </Button>
+  </PageHeader>
 
   <Tabs items={tabs} label="Project filters" class="mt-6" />
 
@@ -47,7 +59,7 @@ const tabs = [
     {
       projects === null ? (
         <div class="rounded-card border border-line bg-surface">
-          <ErrorState description="We couldn't load projects." />
+          <ErrorState description={loadError} />
         </div>
       ) : visible.length === 0 ? (
         <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
@@ -56,6 +68,10 @@ const tabs = [
             description="Projects group related tasks so everyone can see progress in one place."
           >
             <FolderKanban slot="icon" aria-hidden="true" />
+            <Button variant="primary" size="sm" data-dialog-open="project-form">
+              <Plus class="size-3.5" aria-hidden="true" />
+              New project
+            </Button>
           </EmptyState>
         </div>
       ) : (
@@ -67,4 +83,6 @@ const tabs = [
       )
     }
   </div>
+
+  <ProjectFormDialog people={people} ownerId={user.id} />
 </AppLayout>

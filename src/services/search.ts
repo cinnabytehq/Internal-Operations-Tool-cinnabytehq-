@@ -1,54 +1,63 @@
 /**
- * Workspace search used by the command palette (⌘K).
+ * Workspace search for the command palette (⌘K).
  *
- * Phase 2 endpoint:
  *   GET /api/search?q= → searchWorkspace()
- * (PostgreSQL full-text search across requests, projects and tasks.)
+ *
+ * Simple case-insensitive matching (ILIKE). A larger workspace would use
+ * PostgreSQL full-text search instead.
  */
-import { db, simulateLatency } from '@/data/store';
-import { CATEGORY_META, PROJECT_STATUS_META, REQUEST_STATUS_META, TASK_STATUS_META } from '@/lib/meta';
-import { matchesQuery } from '@/lib/utils';
 import type { SearchResult } from '@/types';
+import { PROJECT_STATUS_META, REQUEST_STATUS_META, TASK_STATUS_META, requestRef } from '@/lib/meta';
+import { db, sanitizeSearch, unwrap } from './db';
 
-const LIMIT_PER_TYPE = 5;
+const LIMIT = 5;
 
 export async function searchWorkspace(query: string): Promise<SearchResult[]> {
-  // TODO(api): return api.get('/search', { query: { q: query } });
-  await simulateLatency();
-  if (!query.trim()) return [];
+  const q = sanitizeSearch(query);
+  if (!q) return [];
+  const like = `"%${q}%"`;
+  const number = q.match(/^(?:req-?)?(\d{3,7})$/i)?.[1];
 
-  const requests: SearchResult[] = db.requests
-    .filter((request) => matchesQuery(`${request.id} ${request.title} ${request.description}`, query))
-    .slice(0, LIMIT_PER_TYPE)
-    .map((request) => ({
-      type: 'request',
-      id: request.id,
-      title: request.title,
-      subtitle: `${request.id} · ${REQUEST_STATUS_META[request.status].label} · ${CATEGORY_META[request.category].label}`,
-      href: `/requests/${request.id}`,
-    }));
+  const [requests, projects, tasks] = await Promise.all([
+    db()
+      .from('requests')
+      .select('id, number, title, status')
+      .or([`title.ilike.${like}`, `description.ilike.${like}`, number && `number.eq.${number}`].filter(Boolean).join(','))
+      .order('updated_at', { ascending: false })
+      .limit(LIMIT),
+    db().from('projects').select('id, name, status, progress').or(`name.ilike.${like},description.ilike.${like}`).limit(LIMIT),
+    db()
+      .from('tasks')
+      .select('id, title, status, project:projects(name)')
+      .or(`title.ilike.${like},description.ilike.${like}`)
+      .limit(LIMIT),
+  ]);
 
-  const projects: SearchResult[] = db.projects
-    .filter((project) => matchesQuery(`${project.id} ${project.name} ${project.description}`, query))
-    .slice(0, LIMIT_PER_TYPE)
-    .map((project) => ({
-      type: 'project',
-      id: project.id,
-      title: project.name,
-      subtitle: `${PROJECT_STATUS_META[project.status].label} · ${project.progress}% complete`,
-      href: `/projects/${project.id}`,
-    }));
+  const requestRows = unwrap(requests, 'search requests') as Array<{ id: string; number: number; title: string; status: keyof typeof REQUEST_STATUS_META }>;
+  const projectRows = unwrap(projects, 'search projects') as Array<{ id: string; name: string; status: keyof typeof PROJECT_STATUS_META; progress: number }>;
+  const taskRows = unwrap(tasks, 'search tasks') as unknown as Array<{ id: string; title: string; status: keyof typeof TASK_STATUS_META; project: { name: string } | null }>;
 
-  const tasks: SearchResult[] = db.tasks
-    .filter((task) => matchesQuery(`${task.id} ${task.title} ${task.description ?? ''}`, query))
-    .slice(0, LIMIT_PER_TYPE)
-    .map((task) => ({
-      type: 'task',
-      id: task.id,
-      title: task.title,
-      subtitle: `${task.id} · ${TASK_STATUS_META[task.status].label}`,
-      href: `/tasks#${task.id}`,
-    }));
-
-  return [...requests, ...projects, ...tasks];
+  return [
+    ...requestRows.map((row) => ({
+      type: 'request' as const,
+      id: row.id,
+      title: row.title,
+      subtitle: `${requestRef(row.number)} · ${REQUEST_STATUS_META[row.status].label}`,
+      href: `/requests/${row.id}`,
+    })),
+    ...projectRows.map((row) => ({
+      type: 'project' as const,
+      id: row.id,
+      title: row.name,
+      subtitle: `${PROJECT_STATUS_META[row.status].label} · ${row.progress}% complete`,
+      href: `/projects/${row.id}`,
+    })),
+    ...taskRows.map((row) => ({
+      type: 'task' as const,
+      id: row.id,
+      title: row.title,
+      subtitle: `${TASK_STATUS_META[row.status].label}${row.project ? ` · ${row.project.name}` : ''}`,
+      href: `/tasks#task-${row.id}`,
+    })),
+  ];
 }

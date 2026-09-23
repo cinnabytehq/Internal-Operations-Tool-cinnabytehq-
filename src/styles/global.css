@@ -83,6 +83,8 @@
   --status-review: #44a47f;
   --status-progress: #1e8060;
   --status-done: #0e5a43;
+  /* Rejected sits outside the pipeline: a calm neutral, never an alarm */
+  --status-rejected: #9c9b95;
 
   --ring: color-mix(in oklab, var(--accent) 45%, transparent);
 
@@ -133,6 +135,7 @@
   --status-review: #2f906d;
   --status-progress: #4db68d;
   --status-done: #8cdab7;
+  --status-rejected: #6f7176;
 
   --ring: color-mix(in oklab, var(--accent-ink) 50%, transparent);
 
@@ -217,6 +220,7 @@
   --color-status-review: var(--status-review);
   --color-status-progress: var(--status-progress);
   --color-status-done: var(--status-done);
+  --color-status-rejected: var(--status-rejected);
 
   --color-ring: var(--ring);
 

@@ -1,6 +1,6 @@
 ---
 /**
- * Activity — the workspace audit log, grouped by day.
+ * Activity — the workspace audit log (GET /api/activity), grouped by day.
  */
 import ActivityIcon from '@lucide/astro/icons/activity';
 import AppLayout from '@/layouts/AppLayout.astro';
@@ -9,8 +9,8 @@ import ErrorState from '@/components/ui/ErrorState.astro';
 import PageHeader from '@/components/ui/PageHeader.astro';
 import Tabs from '@/components/ui/Tabs.astro';
 import ActivityTimeline from '@/components/activity/ActivityTimeline.astro';
-import { getActivity } from '@/services/activity';
-import type { ActivityWithActor, EntityType } from '@/types';
+import { serverApi } from '@/lib/api/server';
+import type { ActivityWithRelations, EntityType } from '@/types';
 
 const types: Array<{ id: EntityType | 'all'; label: string }> = [
   { id: 'all', label: 'All' },
@@ -21,11 +21,12 @@ const types: Array<{ id: EntityType | 'all'; label: string }> = [
 const requested = Astro.url.searchParams.get('type');
 const type = types.find((item) => item.id === requested)?.id ?? 'all';
 
-let events: ActivityWithActor[] | null = null;
+let events: ActivityWithRelations[] | null = null;
+let loadError = '';
 try {
-  events = await getActivity({ entityType: type === 'all' ? undefined : type });
-} catch {
-  events = null;
+  events = await serverApi(Astro).getActivity({ entity: type === 'all' ? undefined : type, limit: 150 });
+} catch (error) {
+  loadError = error instanceof Error ? error.message : 'Please try again.';
 }
 
 const tabs = types.map((item) => ({
@@ -44,7 +45,7 @@ const tabs = types.map((item) => ({
     {
       events === null ? (
         <div class="rounded-card border border-line bg-surface">
-          <ErrorState description="We couldn't load the activity log." />
+          <ErrorState description={loadError} />
         </div>
       ) : events.length === 0 ? (
         <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
