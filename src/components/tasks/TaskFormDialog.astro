@@ -1,0 +1,73 @@
+---
+/**
+ * "New task" dialog → POST /api/tasks (src/scripts/taskForm.ts).
+ * Open with a button that has data-dialog-open="task-form"; add
+ * data-project-id to preselect a project.
+ */
+import type { Profile, ProjectWithRelations } from '@/types';
+import Button from '@/components/ui/Button.astro';
+import Dialog from '@/components/ui/Dialog.astro';
+import Field from '@/components/ui/Field.astro';
+import Input from '@/components/ui/Input.astro';
+import Select from '@/components/ui/Select.astro';
+import Textarea from '@/components/ui/Textarea.astro';
+import { PRIORITIES, PRIORITY_META, TASK_STATUSES, TASK_STATUS_META } from '@/lib/meta';
+
+interface Props {
+  people: Profile[];
+  projects: Pick<ProjectWithRelations, 'id' | 'name' | 'status'>[];
+  /** Preselected project (on a project page) */
+  projectId?: string;
+  /** Default assignee, e.g. the current user */
+  assigneeId?: string;
+}
+
+const { people, projects, projectId, assigneeId } = Astro.props;
+const openProjects = projects.filter((project) => project.status !== 'completed' || project.id === projectId);
+---
+
+<Dialog id="task-form" title="New task" description="Add a piece of work to a project." size="md">
+  <form id="task-form-el" novalidate class="flex flex-col gap-5">
+    <Field label="Title" for="task-title">
+      <Input id="task-title" name="title" maxlength="160" required autofocus autocomplete="off" placeholder="e.g. Book the service elevator" aria-describedby="task-title-error" />
+    </Field>
+    <Field label="Description" for="task-description" optional>
+      <Textarea id="task-description" name="description" rows="3" maxlength="2000" placeholder="Add details, links or acceptance criteria." aria-describedby="task-description-error" />
+    </Field>
+    <div class="grid gap-5 sm:grid-cols-2">
+      <Field label="Project" for="task-project">
+        <Select id="task-project" name="project_id" required aria-describedby="task-project-error">
+          <option value="" disabled selected={!projectId}>Select a project</option>
+          {openProjects.map((project) => <option value={project.id} selected={project.id === projectId}>{project.name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Assignee" for="task-assignee" optional>
+        <Select id="task-assignee" name="assignee_id">
+          <option value="">Unassigned</option>
+          {people.map((person) => <option value={person.id} selected={person.id === assigneeId}>{person.full_name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Priority" for="task-priority">
+        <Select id="task-priority" name="priority">
+          {PRIORITIES.map((priority) => <option value={priority} selected={priority === 'medium'}>{PRIORITY_META[priority].label}</option>)}
+        </Select>
+      </Field>
+      <Field label="Status" for="task-status">
+        <Select id="task-status" name="status">
+          {TASK_STATUSES.map((status) => <option value={status}>{TASK_STATUS_META[status].label}</option>)}
+        </Select>
+      </Field>
+      <Field label="Due date" for="task-due" optional>
+        <Input id="task-due" name="due_date" type="date" aria-describedby="task-due-error" />
+      </Field>
+    </div>
+  </form>
+  <Fragment slot="footer">
+    <Button data-dialog-close>Cancel</Button>
+    <Button variant="primary" type="submit" form="task-form-el">Create task</Button>
+  </Fragment>
+</Dialog>
+
+<script>
+  import '@/scripts/taskForm';
+</script>

@@ -1,46 +1,44 @@
 ---
 /**
- * The request's history as a vertical timeline, followed by a comment box.
+ * The request's history as a vertical timeline (from activity_logs),
+ * followed by a comment box.
  */
-import type { ActivityWithActor, RequestWithRelations, User } from '@/types';
+import type { ActivityWithRelations, Profile, RequestStatus, RequestWithRelations } from '@/types';
 import CirclePlus from '@lucide/astro/icons/circle-plus';
+import PencilLine from '@lucide/astro/icons/pencil-line';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
 import ShieldEllipsis from '@lucide/astro/icons/shield-ellipsis';
+import ShieldX from '@lucide/astro/icons/shield-x';
 import UserRoundPlus from '@lucide/astro/icons/user-round-plus';
 import Avatar from '@/components/ui/Avatar.astro';
 import Button from '@/components/ui/Button.astro';
 import Kbd from '@/components/ui/Kbd.astro';
-import PipelineIcon from '@/components/ui/PipelineIcon.astro';
 import Textarea from '@/components/ui/Textarea.astro';
+import RequestStatusIcon from './RequestStatusIcon.astro';
 import { formatDateTime, formatRelative } from '@/lib/dates';
 import { REQUEST_STATUS_META } from '@/lib/meta';
-import type { RequestStatus } from '@/types';
 
 interface Props {
   request: RequestWithRelations;
-  timeline: ActivityWithActor[];
-  user: User;
+  /** Oldest first */
+  timeline: ActivityWithRelations[];
+  user: Profile;
   timeZone: string;
 }
 
 const { request, timeline, user, timeZone } = Astro.props;
 
 type Item =
-  | { kind: 'event'; at: string; event: ActivityWithActor }
-  | { kind: 'approval_requested'; at: string; approver: User };
+  | { kind: 'event'; at: string; event: ActivityWithRelations }
+  | { kind: 'approval_requested'; at: string; approver: Profile };
 
-const items: Item[] = timeline.map((event) => ({ kind: 'event' as const, at: event.createdAt, event }));
+const items: Item[] = timeline.map((event) => ({ kind: 'event' as const, at: event.created_at, event }));
 if (request.approval) {
-  items.push({ kind: 'approval_requested', at: request.approval.requestedAt, approver: request.approval.approver });
+  items.push({ kind: 'approval_requested', at: request.approval.created_at, approver: request.approval.approver });
 }
 items.sort((a, b) => a.at.localeCompare(b.at));
 
-const statusColors: Record<RequestStatus, string> = {
-  new: 'text-status-new',
-  in_review: 'text-status-review',
-  in_progress: 'text-status-progress',
-  completed: 'text-status-done',
-};
+const label = (status?: string) => REQUEST_STATUS_META[status as RequestStatus]?.label ?? status;
 const node =
   'relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-fg-muted [&_svg]:size-3.5';
 const strong = 'font-medium text-fg';
@@ -59,61 +57,74 @@ const strong = 'font-medium text-fg';
               <ShieldEllipsis aria-hidden="true" />
             </span>
             <p class="pt-1 text-[13px] text-fg-muted">
-              Approval requested from <span class={strong}>{item.approver.name}</span>
+              Approval requested from <span class={strong}>{item.approver.full_name}</span>
               <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
                 {formatRelative(item.at)}
               </time>
             </p>
           </>
-        ) : item.event.type === 'commented' ? (
+        ) : item.event.action === 'commented' ? (
           <>
-            <Avatar user={item.event.actor} size="md" class="relative z-10 -ml-0.5 ring-4 ring-surface" />
+            {item.event.user ? (
+              <Avatar user={item.event.user} size="md" class="relative z-10 -ml-0.5 ring-4 ring-surface" />
+            ) : (
+              <span class={node} />
+            )}
             <div class="min-w-0 flex-1">
               <p class="pt-1 text-[13px] text-fg-muted">
-                <span class={strong}>{item.event.actor.name}</span> commented
+                <span class={strong}>{item.event.user?.full_name ?? 'Someone'}</span> commented
                 <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
                   {formatRelative(item.at)}
                 </time>
               </p>
               <div class="mt-2 rounded-lg border border-line bg-subtle/60 px-3.5 py-2.5 text-[13px] leading-relaxed whitespace-pre-line text-fg">
-                {item.event.meta?.comment}
+                {item.event.metadata.comment}
               </div>
             </div>
           </>
         ) : (
           <>
             <span class={node}>
-              {item.event.type === 'created' && <CirclePlus aria-hidden="true" />}
-              {item.event.type === 'approved' && <ShieldCheck class="text-accent-ink" aria-hidden="true" />}
-              {item.event.type === 'assigned' && <UserRoundPlus aria-hidden="true" />}
-              {item.event.type === 'status_changed' && (
-                <PipelineIcon
-                  step={REQUEST_STATUS_META[item.event.meta?.to as RequestStatus]?.step ?? 1}
-                  total={4}
-                  class={statusColors[item.event.meta?.to as RequestStatus]}
-                />
+              {item.event.action === 'created' && <CirclePlus aria-hidden="true" />}
+              {item.event.action === 'approved' && <ShieldCheck class="text-accent-ink" aria-hidden="true" />}
+              {item.event.action === 'rejected' && <ShieldX aria-hidden="true" />}
+              {item.event.action === 'assigned' && <UserRoundPlus aria-hidden="true" />}
+              {item.event.action === 'updated' && <PencilLine aria-hidden="true" />}
+              {item.event.action === 'status_changed' && item.event.metadata.to && (
+                <RequestStatusIcon status={item.event.metadata.to as RequestStatus} />
               )}
             </span>
-            <p class="pt-1 text-[13px] text-fg-muted">
-              <span class={strong}>{item.event.actor.name}</span>{' '}
-              {item.event.type === 'created' && 'opened this request'}
-              {item.event.type === 'approved' && 'approved this request'}
-              {item.event.type === 'assigned' && (
-                <>
-                  assigned it to <span class={strong}>{item.event.target?.name}</span>
-                </>
+            <div class="min-w-0 flex-1 pt-1">
+              <p class="text-[13px] text-fg-muted">
+                <span class={strong}>{item.event.user?.full_name ?? 'Someone'}</span>{' '}
+                {item.event.action === 'created' && 'opened this request'}
+                {item.event.action === 'approved' && 'approved this request'}
+                {item.event.action === 'rejected' && 'rejected this request'}
+                {item.event.action === 'updated' && item.event.description.replace(/ on REQ-\d+/, '')}
+                {item.event.action === 'assigned' &&
+                  (item.event.metadata.assignee_name ? (
+                    <>
+                      assigned it to <span class={strong}>{item.event.metadata.assignee_name}</span>
+                    </>
+                  ) : (
+                    'removed the assignee'
+                  ))}
+                {item.event.action === 'status_changed' && (
+                  <>
+                    moved it from <span class={strong}>{label(item.event.metadata.from)}</span> to{' '}
+                    <span class={strong}>{label(item.event.metadata.to)}</span>
+                  </>
+                )}
+                <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
+                  {formatRelative(item.at)}
+                </time>
+              </p>
+              {(item.event.action === 'approved' || item.event.action === 'rejected') && item.event.metadata.comment && (
+                <p class="mt-1.5 rounded-lg border border-line bg-subtle/60 px-3 py-2 text-[13px] text-fg">
+                  “{item.event.metadata.comment}”
+                </p>
               )}
-              {item.event.type === 'status_changed' && (
-                <>
-                  moved it from{' '}
-                  <span class={strong}>{REQUEST_STATUS_META[item.event.meta?.from as RequestStatus]?.label}</span> to{' '}
-                  <span class={strong}>{REQUEST_STATUS_META[item.event.meta?.to as RequestStatus]?.label}</span>
-                </>
-              )}
-              <time class="ml-1.5 text-xs text-fg-subtle" datetime={item.at} title={formatDateTime(item.at, timeZone)}>
-                {formatRelative(item.at)}
-              </time>
-            </p>
+            </div>
           </>
         )}
       </li>

@@ -1,0 +1,76 @@
+---
+/**
+ * Create or edit a project → POST /api/projects or PATCH /api/projects/:id
+ * (src/scripts/projectForm.ts). Pass `project` to edit.
+ */
+import type { Profile, ProjectWithRelations } from '@/types';
+import Button from '@/components/ui/Button.astro';
+import Dialog from '@/components/ui/Dialog.astro';
+import Field from '@/components/ui/Field.astro';
+import Input from '@/components/ui/Input.astro';
+import Select from '@/components/ui/Select.astro';
+import Textarea from '@/components/ui/Textarea.astro';
+import { PROJECT_STATUSES, PROJECT_STATUS_META } from '@/lib/meta';
+
+interface Props {
+  people: Profile[];
+  project?: ProjectWithRelations;
+  /** Default owner for new projects */
+  ownerId?: string;
+}
+
+const { people, project, ownerId } = Astro.props;
+const editing = Boolean(project);
+---
+
+<Dialog
+  id="project-form"
+  title={editing ? 'Edit project' : 'New project'}
+  description={editing ? 'Update the details, status or reported progress.' : 'Start a new work stream for the team.'}
+  size="md"
+>
+  <form id="project-form-el" novalidate class="flex flex-col gap-5" data-project-id={project?.id}>
+    <Field label="Name" for="project-name">
+      <Input id="project-name" name="name" value={project?.name} maxlength="80" required autofocus autocomplete="off" placeholder="e.g. Q4 Security Review" aria-describedby="project-name-error" />
+    </Field>
+    <Field label="Description" for="project-description">
+      <Textarea id="project-description" name="description" rows="3" maxlength="1000" required placeholder="What is this project about, and what does done look like?" aria-describedby="project-description-error">{project?.description}</Textarea>
+    </Field>
+    <div class="grid gap-5 sm:grid-cols-2">
+      <Field label="Owner" for="project-owner">
+        <Select id="project-owner" name="owner_id" required aria-describedby="project-owner-error">
+          {people.map((person) => <option value={person.id} selected={person.id === (project?.owner_id ?? ownerId)}>{person.full_name}</option>)}
+        </Select>
+      </Field>
+      <Field label="Status" for="project-status">
+        <Select id="project-status" name="status">
+          {PROJECT_STATUSES.map((status) => <option value={status} selected={status === (project?.status ?? 'planning')}>{PROJECT_STATUS_META[status].label}</option>)}
+        </Select>
+      </Field>
+    </div>
+    <Field label="Progress" for="project-progress" hint="Reported by the project owner.">
+      <div class="flex items-center gap-3">
+        <input
+          id="project-progress"
+          name="progress"
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={project?.progress ?? 0}
+          aria-describedby="project-progress-hint project-progress-error"
+          class="h-2 flex-1 cursor-pointer accent-[var(--accent)]"
+        />
+        <output for="project-progress" data-progress-output class="tabular w-11 text-right text-sm font-semibold text-fg">{project?.progress ?? 0}%</output>
+      </div>
+    </Field>
+  </form>
+  <Fragment slot="footer">
+    <Button data-dialog-close>Cancel</Button>
+    <Button variant="primary" type="submit" form="project-form-el">{editing ? 'Save changes' : 'Create project'}</Button>
+  </Fragment>
+</Dialog>
+
+<script>
+  import '@/scripts/projectForm';
+</script>

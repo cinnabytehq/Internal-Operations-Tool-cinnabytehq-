@@ -3,7 +3,7 @@
  * Sticky top bar: navigation toggles, breadcrumb, search, notifications,
  * theme and profile.
  */
-import type { ActivityWithActor, User } from '@/types';
+import type { ActivityWithRelations, Profile } from '@/types';
 import Menu from '@lucide/astro/icons/menu';
 import PanelLeft from '@lucide/astro/icons/panel-left';
 import Search from '@lucide/astro/icons/search';
@@ -17,9 +17,9 @@ import UserMenu from './UserMenu.astro';
 import type { Crumb } from './navigation';
 
 interface Props {
-  user: User;
+  user: Profile;
   breadcrumbs: Crumb[];
-  notifications: ActivityWithActor[];
+  notifications: ActivityWithRelations[];
 }
 
 const { user, breadcrumbs, notifications } = Astro.props;
@@ -96,7 +96,7 @@ const { user, breadcrumbs, notifications } = Astro.props;
         popovertarget="topbar-user-menu"
         aria-haspopup="menu"
         aria-expanded="false"
-        aria-label={`Account menu for ${user.name}`}
+        aria-label={`Account menu for ${user.full_name}`}
         class="ml-1 rounded-full transition-opacity hover:opacity-85"
       >
         <Avatar user={user} size="md" />

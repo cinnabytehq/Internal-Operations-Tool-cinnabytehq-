@@ -3,7 +3,7 @@
  * Sidebar body. Rendered twice: in the desktop <aside> (which becomes an
  * icon rail on tablets or when collapsed) and inside the mobile drawer.
  */
-import type { User } from '@/types';
+import type { Profile } from '@/types';
 import Plus from '@lucide/astro/icons/plus';
 import ChevronsUpDown from '@lucide/astro/icons/chevrons-up-down';
 import X from '@lucide/astro/icons/x';
@@ -14,9 +14,10 @@ import NavIcon from './NavIcon.astro';
 import ThemeSwitcher from './ThemeSwitcher.astro';
 import UserMenu from './UserMenu.astro';
 import { NAV_ITEMS, isActive } from './navigation';
+import { ROLE_META } from '@/lib/meta';
 
 interface Props {
-  user: User;
+  user: Profile;
   pathname: string;
   surface: 'desktop' | 'mobile';
 }
@@ -98,11 +99,19 @@ const tooltip =
     >
       <Avatar user={user} size="md" />
       <span class="min-w-0 flex-1 rail:sr-only">
-        <span class="block truncate text-[13px] font-medium text-fg">{user.name}</span>
-        <span class="block truncate text-xs text-fg-muted">{user.title}</span>
+        <span class="block truncate text-[13px] font-medium text-fg">{user.full_name}</span>
+        <span class="flex items-center gap-1.5 text-xs text-fg-muted">
+          <span class="truncate">{user.job_title ?? ROLE_META[user.role].label}</span>
+          <span
+            class="shrink-0 rounded bg-warning-soft px-1 text-[10px] font-semibold tracking-wide text-warning-ink uppercase"
+            title="Development session: no sign-in yet. Every visitor acts as this profile."
+          >
+            Dev
+          </span>
+        </span>
       </span>
       <ChevronsUpDown class="size-4 shrink-0 text-fg-subtle rail:hidden" aria-hidden="true" />
-      <span class={tooltip} aria-hidden="true">{user.name}</span>
+      <span class={tooltip} aria-hidden="true">{user.full_name}</span>
     </button>
     <UserMenu id={menuId} user={user} placement="top-start" />
   </div>

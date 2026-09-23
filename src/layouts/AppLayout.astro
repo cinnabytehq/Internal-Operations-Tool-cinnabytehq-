@@ -7,13 +7,14 @@ import BaseLayout from './BaseLayout.astro';
 import Sidebar from '@/components/layout/Sidebar.astro';
 import Topbar from '@/components/layout/Topbar.astro';
 import CommandPalette from '@/components/layout/CommandPalette.astro';
+import ConfirmDialog from '@/components/layout/ConfirmDialog.astro';
 import ShortcutsDialog from '@/components/layout/ShortcutsDialog.astro';
 import Toaster from '@/components/layout/Toaster.astro';
 import CreateRequestDialog from '@/components/requests/CreateRequestDialog.astro';
 import type { Crumb } from '@/components/layout/navigation';
-import { getNotifications } from '@/services/activity';
-import { getUsers } from '@/services/users';
+import { serverApi } from '@/lib/api/server';
 import { cn } from '@/lib/utils';
+import type { ActivityWithRelations, Profile } from '@/types';
 
 interface Props {
   title: string;
@@ -23,8 +24,14 @@ interface Props {
 }
 
 const { title, breadcrumbs = [{ label: title }], width = 'default' } = Astro.props;
-const { user } = Astro.locals;
-const [users, notifications] = await Promise.all([getUsers(), getNotifications()]);
+// Middleware guarantees a user on app pages (otherwise it shows /setup).
+const user = Astro.locals.user as Profile;
+const api = serverApi(Astro);
+// The shell degrades gracefully: a failed call just means an empty list.
+const [people, notifications] = await Promise.all([
+  api.getProfiles().catch((): Profile[] => []),
+  api.getNotifications().catch((): ActivityWithRelations[] => []),
+]);
 
 const widths = { default: 'max-w-[1240px]', narrow: 'max-w-4xl', full: 'max-w-none' };
 ---
@@ -47,8 +54,9 @@ const widths = { default: 'max-w-[1240px]', narrow: 'max-w-4xl', full: 'max-w-no
     </div>
   </div>
 
-  <CreateRequestDialog users={users} />
+  <CreateRequestDialog people={people} />
   <CommandPalette />
+  <ConfirmDialog />
   <ShortcutsDialog />
   <Toaster />
 </BaseLayout>

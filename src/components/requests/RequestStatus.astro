@@ -1,28 +1,21 @@
 ---
 /**
- * Request status: segmented pipeline glyph + label. Shape and text carry
- * the meaning; the ordinal green ramp reinforces it.
+ * Request status: pipeline glyph + label. Shape and text carry the
+ * meaning; the ordinal green ramp reinforces it.
  */
 import type { RequestStatus as Status } from '@/types';
-import PipelineIcon from '@/components/ui/PipelineIcon.astro';
 import { REQUEST_STATUS_META } from '@/lib/meta';
 import { cn } from '@/lib/utils';
+import RequestStatusIcon from './RequestStatusIcon.astro';
 
 interface Props {
   status: Status;
-  /** "chip" adds a bordered container (headers, menus triggers) */
+  /** "chip" adds a bordered container (headers, menu triggers) */
   variant?: 'plain' | 'chip';
   class?: string;
 }
 
 const { status, variant = 'plain', class: className } = Astro.props;
-
-const colors: Record<Status, string> = {
-  new: 'text-status-new',
-  in_review: 'text-status-review',
-  in_progress: 'text-status-progress',
-  completed: 'text-status-done',
-};
 ---
 
 <span
@@ -32,6 +25,6 @@ const colors: Record<Status, string> = {
     className,
   )}
 >
-  <PipelineIcon step={REQUEST_STATUS_META[status].step} total={4} class={colors[status]} />
+  <RequestStatusIcon status={status} />
   {REQUEST_STATUS_META[status].label}
 </span>

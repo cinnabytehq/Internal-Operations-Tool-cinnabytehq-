@@ -1,0 +1,164 @@
+---
+/**
+ * The request list shell. Rows are rendered in the browser from
+ * GET /api/requests by src/scripts/requestsPage.ts, using the <template>s
+ * below — so the markup (and every icon) is still authored here, in Astro.
+ *
+ * States: loading (skeleton) · ready · empty · no-results · error.
+ */
+import Plus from '@lucide/astro/icons/plus';
+import SearchX from '@lucide/astro/icons/search-x';
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import Button from '@/components/ui/Button.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import Skeleton from '@/components/ui/Skeleton.astro';
+import CategoryIcon from './CategoryIcon.astro';
+import PriorityLabel from './PriorityLabel.astro';
+import RequestStatus from './RequestStatus.astro';
+import { PRIORITIES, REQUEST_CATEGORIES, REQUEST_STATUSES } from '@/lib/meta';
+
+const th = 'px-3 py-2.5 text-left text-xs font-medium text-fg-subtle';
+const card = 'rounded-card border border-line bg-surface shadow-card';
+---
+
+<div data-request-list data-state="loading" class="transition-opacity duration-150 data-[busy]:opacity-60">
+  <!-- Loading: table skeleton (desktop) and card skeletons (phones) -->
+  <div data-show="loading" role="status" aria-busy="true">
+    <span class="sr-only">Loading requests…</span>
+    <div class:list={[card, 'hidden overflow-hidden md:block']}>
+      <div class="flex gap-6 border-b border-line bg-subtle/60 px-5 py-3">
+        {[40, 16, 18, 10, 12].map((width) => <Skeleton class="h-3" style={`width: ${width}%`} />)}
+      </div>
+      {
+        Array.from({ length: 7 }, (_, index) => (
+          <div class="flex items-center gap-6 border-b border-line px-5 py-3.5 last:border-0">
+            <div class="flex w-[40%] items-center gap-3">
+              <Skeleton class="size-8 shrink-0" />
+              <div class="flex-1 space-y-2">
+                <Skeleton class="h-3.5" style={`width: ${[80, 65, 72, 58, 76, 62, 70][index]}%`} />
+                <Skeleton class="h-3 w-24" />
+              </div>
+            </div>
+            <div class="flex w-[16%] items-center gap-2"><Skeleton class="size-6 rounded-full" /><Skeleton class="h-3 flex-1" /></div>
+            <div class="flex w-[18%] items-center gap-2"><Skeleton class="size-6 rounded-full" /><Skeleton class="h-3 flex-1" /></div>
+            <Skeleton class="h-3 w-[10%]" />
+            <Skeleton class="h-3 w-[12%]" />
+          </div>
+        ))
+      }
+    </div>
+    <div class="flex flex-col gap-2.5 md:hidden">
+      {
+        Array.from({ length: 4 }, () => (
+          <div class:list={[card, 'space-y-3 p-4']}>
+            <div class="flex justify-between"><Skeleton class="h-3 w-20" /><Skeleton class="h-3 w-16" /></div>
+            <Skeleton class="h-4 w-4/5" />
+            <div class="flex justify-between"><Skeleton class="h-3 w-28" /><Skeleton class="h-3 w-12" /></div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <!-- Ready: table (tablet & desktop) and cards (phones) -->
+  <div data-show="ready" hidden>
+    <div class:list={[card, 'hidden overflow-x-auto md:block']}>
+      <table class="w-full min-w-[860px] border-collapse text-[13px]">
+        <caption class="sr-only">Requests</caption>
+        <thead class="border-b border-line bg-subtle/60">
+          <tr>
+            <th scope="col" class:list={[th, 'pl-5']}>Request</th>
+            <th scope="col" class={th}>Requester</th>
+            <th scope="col" class={th}>Assignee</th>
+            <th scope="col" class={th}>Priority</th>
+            <th scope="col" class={th}>Status</th>
+            <th scope="col" class:list={[th, 'pr-5 text-right']}>Updated</th>
+          </tr>
+        </thead>
+        <tbody data-request-rows></tbody>
+      </table>
+    </div>
+    <ul data-request-cards class="flex flex-col gap-2.5 md:hidden" aria-label="Requests"></ul>
+    <p class="mt-3 text-xs text-fg-subtle" data-result-summary aria-live="polite"></p>
+  </div>
+
+  <!-- Empty: nothing in this view at all -->
+  <div data-show="empty" hidden class="rounded-card border border-dashed border-line-strong bg-surface/60">
+    <EmptyState title="No requests yet" description="When your team submits an internal request, it will appear here.">
+      <Button variant="primary" size="sm" data-dialog-open="create-request">
+        <Plus class="size-3.5" aria-hidden="true" />
+        Create request
+      </Button>
+    </EmptyState>
+  </div>
+
+  <!-- No results: filters or search hide everything -->
+  <div data-show="no-results" hidden class="rounded-card border border-dashed border-line-strong bg-surface/60">
+    <EmptyState title="No matching requests" description="Try a different keyword, a request number like REQ-1041, or clear the filters.">
+      <SearchX slot="icon" aria-hidden="true" />
+      <Button size="sm" data-clear-filters>Clear filters</Button>
+    </EmptyState>
+  </div>
+
+  <!-- Error: the API call failed -->
+  <div data-show="error" hidden class="rounded-card border border-line bg-surface">
+    <ErrorState description="We couldn't load requests." />
+  </div>
+</div>
+
+<!-- Templates used by the renderer -->
+<template id="request-row-template">
+  <tr data-request-row class="cursor-pointer border-b border-line transition-colors duration-100 last:border-0 hover:bg-subtle/70">
+    <td class="max-w-0 py-3 pr-3 pl-5">
+      <div class="flex items-center gap-3">
+        <span data-slot="category-icon" class="flex size-8 shrink-0 items-center justify-center rounded-md border border-line bg-subtle text-fg-muted"></span>
+        <div class="min-w-0">
+          <a data-slot="title" class="block truncate font-medium text-fg hover:underline"></a>
+          <p class="mt-0.5 truncate text-xs text-fg-subtle">
+            <span data-slot="ref" class="font-mono"></span> · <span data-slot="category"></span>
+          </p>
+        </div>
+      </div>
+    </td>
+    <td class="w-44 px-3 py-3" data-slot="requester"></td>
+    <td class="w-48 px-3 py-3" data-slot="assignee"></td>
+    <td class="w-28 px-3 py-3" data-slot="priority"></td>
+    <td class="w-40 px-3 py-3">
+      <div data-slot="status"></div>
+      <span data-slot="approval" hidden class="mt-1 flex items-center gap-1 text-xs text-warning-ink">
+        <ShieldCheck class="size-3" aria-hidden="true" />
+        Awaiting approval
+      </span>
+    </td>
+    <td class="w-28 py-3 pr-5 pl-3 text-right text-fg-muted"><time data-slot="updated"></time></td>
+  </tr>
+</template>
+
+<template id="request-card-template">
+  <li data-request-row>
+    <a data-slot="link" class:list={[card, 'block p-4 transition-colors active:bg-subtle']}>
+      <span class="flex items-center justify-between gap-3">
+        <span class="flex min-w-0 items-center gap-1.5 text-xs text-fg-subtle">
+          <span data-slot="category-icon" class="flex"></span>
+          <span data-slot="ref" class="font-mono"></span>
+        </span>
+        <span data-slot="status"></span>
+      </span>
+      <span data-slot="title" class="mt-2 block text-sm leading-snug font-medium text-fg"></span>
+      <span class="mt-3 flex items-center justify-between gap-3 text-xs text-fg-muted">
+        <span class="flex items-center gap-3">
+          <span data-slot="priority"></span>
+          <span data-slot="requester" class="flex items-center gap-1.5"></span>
+        </span>
+        <span data-slot="updated"></span>
+      </span>
+    </a>
+  </li>
+</template>
+
+<template id="request-glyphs">
+  {REQUEST_STATUSES.map((status) => <span data-glyph={`status:${status}`}><RequestStatus status={status} /></span>)}
+  {PRIORITIES.map((priority) => <span data-glyph={`priority:${priority}`}><PriorityLabel priority={priority} /></span>)}
+  {REQUEST_CATEGORIES.map((category) => <span data-glyph={`category:${category}`}><CategoryIcon category={category} /></span>)}
+</template>

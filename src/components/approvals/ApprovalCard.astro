@@ -1,0 +1,93 @@
+---
+/**
+ * One approval: the request it guards, who asked, who decides and — once
+ * decided — the outcome and comment. Pending approvals the viewer can
+ * decide get Approve / Reject buttons.
+ */
+import type { ApprovalWithRelations, Profile } from '@/types';
+import ArrowRight from '@lucide/astro/icons/arrow-right';
+import ShieldCheck from '@lucide/astro/icons/shield-check';
+import ShieldX from '@lucide/astro/icons/shield-x';
+import Avatar from '@/components/ui/Avatar.astro';
+import Badge from '@/components/ui/Badge.astro';
+import Button from '@/components/ui/Button.astro';
+import CategoryIcon from '@/components/requests/CategoryIcon.astro';
+import PriorityLabel from '@/components/requests/PriorityLabel.astro';
+import { formatDateTime, formatRelative } from '@/lib/dates';
+import { APPROVAL_META, CATEGORY_META, requestRef } from '@/lib/meta';
+
+interface Props {
+  approval: ApprovalWithRelations;
+  user: Profile;
+  timeZone: string;
+}
+
+const { approval, user, timeZone } = Astro.props;
+const { request } = approval;
+const canDecide = approval.status === 'pending' && (approval.approver_id === user.id || user.role === 'admin');
+const tone = approval.status === 'approved' ? 'success' : approval.status === 'rejected' ? 'neutral' : 'warning';
+const Icon = approval.status === 'rejected' ? ShieldX : ShieldCheck;
+---
+
+<li data-approval={approval.id} class="rounded-card border border-line bg-surface p-4 shadow-card transition-opacity duration-200 sm:p-5">
+  <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
+    <span class="flex size-9 shrink-0 items-center justify-center rounded-md border border-line bg-subtle text-fg-muted max-sm:hidden">
+      <CategoryIcon category={request.category} class="size-4" />
+    </span>
+    <div class="min-w-0 flex-1">
+      <div class="flex flex-wrap items-center gap-2 text-xs text-fg-subtle">
+        <span class="font-mono">{requestRef(request.number)}</span>
+        <span aria-hidden="true">·</span>
+        <span>{CATEGORY_META[request.category].label}</span>
+        <span aria-hidden="true">·</span>
+        <PriorityLabel priority={request.priority} class="text-xs" />
+      </div>
+      <a href={`/requests/${request.id}`} class="mt-1 block text-sm font-semibold text-fg hover:underline">{request.title}</a>
+      <div class="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-fg-muted">
+        <span class="flex items-center gap-1.5">
+          <Avatar user={request.requester} size="xs" />
+          {request.requester.full_name}
+        </span>
+        <ArrowRight class="size-3.5 text-fg-subtle" aria-label="asks" />
+        <span class="flex items-center gap-1.5">
+          <Avatar user={approval.approver} size="xs" />
+          {approval.approver.full_name}
+        </span>
+        <span class="text-xs text-fg-subtle" title={formatDateTime(approval.created_at, timeZone)}>· requested {formatRelative(approval.created_at)}</span>
+      </div>
+      {
+        approval.comment && (
+          <p class="mt-3 rounded-md border border-line bg-subtle/60 px-3 py-2 text-[13px] text-fg">
+            <span class="font-medium">{approval.approver.full_name.split(' ')[0]}:</span> “{approval.comment}”
+          </p>
+        )
+      }
+    </div>
+
+    <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+      <Badge tone={tone}>
+        <Icon aria-hidden="true" />
+        {APPROVAL_META[approval.status].label}
+      </Badge>
+      {
+        approval.approved_at && (
+          <span class="text-xs text-fg-subtle" title={formatDateTime(approval.approved_at, timeZone)}>
+            {formatRelative(approval.approved_at)}
+          </span>
+        )
+      }
+      {
+        canDecide && (
+          <div class="mt-1 grid grid-cols-2 gap-2">
+            <Button size="sm" variant="primary" data-approve={approval.id}>
+              Approve
+            </Button>
+            <Button size="sm" data-reject={approval.id} data-title={request.title}>
+              Reject
+            </Button>
+          </div>
+        )
+      }
+    </div>
+  </div>
+</li>

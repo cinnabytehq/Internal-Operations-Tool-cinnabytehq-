@@ -1,0 +1,16 @@
+---
+/**
+ * One shared confirmation dialog. Scripts call `confirmAction({...})`
+ * (src/scripts/confirm.ts), which resolves to true or false.
+ */
+import Button from '@/components/ui/Button.astro';
+import Dialog from '@/components/ui/Dialog.astro';
+---
+
+<Dialog id="confirm-dialog" title="Are you sure?" size="sm">
+  <p data-confirm-description class="text-[13px] leading-relaxed text-fg-muted"></p>
+  <Fragment slot="footer">
+    <Button data-dialog-close>Cancel</Button>
+    <Button variant="danger" data-confirm-accept>Confirm</Button>
+  </Fragment>
+</Dialog>

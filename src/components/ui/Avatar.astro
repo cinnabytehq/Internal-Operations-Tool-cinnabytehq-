@@ -1,11 +1,11 @@
 ---
-import type { User } from '@/types';
-import { cn, initials } from '@/lib/utils';
+import type { Profile } from '@/types';
+import { avatarColor, cn, initials } from '@/lib/utils';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 interface Props {
-  user: Pick<User, 'name' | 'avatarColor'>;
+  user: Pick<Profile, 'id' | 'full_name' | 'avatar_url'>;
   size?: Size;
   class?: string;
   /** Announce the name to screen readers (off when the name is shown next to it) */
@@ -23,17 +23,29 @@ const sizes: Record<Size, string> = {
 };
 ---
 
-<span
-  class={cn(
-    'avatar inline-flex shrink-0 items-center justify-center rounded-full font-semibold tracking-wide select-none',
-    sizes[size],
-    className,
-  )}
-  data-color={user.avatarColor}
-  role={labelled ? 'img' : undefined}
-  aria-label={labelled ? user.name : undefined}
-  aria-hidden={labelled ? undefined : 'true'}
-  title={labelled ? user.name : undefined}
->
-  {initials(user.name)}
-</span>
+{
+  user.avatar_url ? (
+    <img
+      src={user.avatar_url}
+      alt={labelled ? user.full_name : ''}
+      title={labelled ? user.full_name : undefined}
+      loading="lazy"
+      class={cn('shrink-0 rounded-full object-cover', sizes[size], className)}
+    />
+  ) : (
+    <span
+      class={cn(
+        'avatar inline-flex shrink-0 items-center justify-center rounded-full font-semibold tracking-wide select-none',
+        sizes[size],
+        className,
+      )}
+      data-color={avatarColor(user.id)}
+      role={labelled ? 'img' : undefined}
+      aria-label={labelled ? user.full_name : undefined}
+      aria-hidden={labelled ? undefined : 'true'}
+      title={labelled ? user.full_name : undefined}
+    >
+      {initials(user.full_name)}
+    </span>
+  )
+}

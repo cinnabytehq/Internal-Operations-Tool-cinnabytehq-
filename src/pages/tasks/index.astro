@@ -1,8 +1,11 @@
 ---
 /**
- * Tasks — complete, re-status and search tasks across projects.
+ * Tasks — GET /api/tasks?view=. Complete, re-status, assign and delete
+ * without a reload (PATCH / DELETE /api/tasks/:id); search and the priority
+ * filter work instantly on the loaded list.
  */
 import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
+import Plus from '@lucide/astro/icons/plus';
 import SearchX from '@lucide/astro/icons/search-x';
 import AppLayout from '@/layouts/AppLayout.astro';
 import Button from '@/components/ui/Button.astro';
@@ -10,89 +13,115 @@ import EmptyState from '@/components/ui/EmptyState.astro';
 import ErrorState from '@/components/ui/ErrorState.astro';
 import PageHeader from '@/components/ui/PageHeader.astro';
 import SearchInput from '@/components/ui/SearchInput.astro';
+import Select from '@/components/ui/Select.astro';
 import Tabs from '@/components/ui/Tabs.astro';
+import TaskFormDialog from '@/components/tasks/TaskFormDialog.astro';
 import TaskRow from '@/components/tasks/TaskRow.astro';
-import { getTaskCounts, getTasks, taskSearchText } from '@/services/tasks';
-import { TASK_VIEWS, isTaskView } from '@/lib/meta';
+import { serverApi } from '@/lib/api/server';
+import { PRIORITIES, PRIORITY_META, TASK_VIEWS, isPriority, isTaskView } from '@/lib/meta';
 import { matchesQuery } from '@/lib/utils';
-import type { TaskView } from '@/types';
+import type { Profile, ProjectWithRelations, TaskListMeta, TaskView, TaskWithRelations } from '@/types';
 
 const params = Astro.url.searchParams;
 const view: TaskView = isTaskView(params.get('view')) ? (params.get('view') as TaskView) : 'all';
 const query = params.get('q') ?? '';
+const priority = isPriority(params.get('priority')) ? params.get('priority')! : '';
+const user = Astro.locals.user as Profile;
+const api = serverApi(Astro);
 
-let data: { tasks: Awaited<ReturnType<typeof getTasks>>; counts: Awaited<ReturnType<typeof getTaskCounts>> } | null = null;
+let tasks: TaskWithRelations[] | null = null;
+let meta: TaskListMeta | null = null;
+let people: Profile[] = [];
+let projects: ProjectWithRelations[] = [];
+let loadError = '';
 try {
-  const [tasks, counts] = await Promise.all([getTasks({ view }), getTaskCounts()]);
-  data = { tasks, counts };
-} catch {
-  data = null;
+  const [taskList, peopleList, projectList] = await Promise.all([api.getTasks({ view }), api.getProfiles(), api.getProjects()]);
+  ({ data: tasks, meta } = taskList);
+  people = peopleList;
+  projects = projectList;
+} catch (error) {
+  loadError = error instanceof Error ? error.message : 'Please try again.';
 }
 
 const tabs = TASK_VIEWS.map((item) => ({
   label: item.label,
   href: item.id === 'all' ? '/tasks' : `/tasks?view=${item.id}`,
   active: item.id === view,
-  count: data?.counts[item.id],
-  countKey: item.id === 'completed' ? 'completed' : undefined,
+  count: meta?.counts[item.id],
+  countKey: item.id,
 }));
-const matches = data?.tasks.filter((task) => matchesQuery(taskSearchText(task), query)) ?? [];
-const matchIds = new Set(matches.map((task) => task.id));
+const visibleIds = new Set(
+  (tasks ?? [])
+    .filter((task) => matchesQuery([task.title, task.description, task.project.name, task.assignee?.full_name].join(' '), query))
+    .filter((task) => !priority || task.priority === priority)
+    .map((task) => task.id),
+);
 const header = 'text-xs font-medium text-fg-subtle';
 ---
 
 <AppLayout title="Tasks">
-  <PageHeader title="Tasks" description="Everything that needs doing, across every project." />
+  <PageHeader title="Tasks" description="Everything that needs doing, across every project.">
+    <Button slot="actions" variant="primary" data-dialog-open="task-form" class="max-sm:w-full">
+      <Plus class="size-4" aria-hidden="true" />
+      New task
+    </Button>
+  </PageHeader>
 
   <div data-filter-scope class="mt-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <Tabs items={tabs} label="Task views" />
-      <SearchInput label="Search tasks" placeholder="Search tasks…" value={query} class="md:w-72" />
+      <div class="flex gap-2">
+        <Select aria-label="Filter by priority" data-filter-select="priority" class="w-36 shrink-0">
+          <option value="">All priorities</option>
+          {PRIORITIES.map((value) => <option value={value} selected={value === priority}>{PRIORITY_META[value].label}</option>)}
+        </Select>
+        <SearchInput label="Search tasks" placeholder="Search tasks…" value={query} class="min-w-0 flex-1 md:w-64" />
+      </div>
     </div>
 
     <div class="mt-4">
       {
-        data === null ? (
+        tasks === null ? (
           <div class="rounded-card border border-line bg-surface">
-            <ErrorState description="We couldn't load tasks." />
+            <ErrorState description={loadError} />
           </div>
-        ) : data.tasks.length === 0 ? (
+        ) : tasks.length === 0 ? (
           <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
             <EmptyState
               title={view === 'completed' ? 'No completed tasks yet' : "You're all caught up"}
               description={view === 'completed' ? 'Tasks you finish will be kept here.' : 'There are no tasks in this view right now.'}
             >
               <CircleCheckBig slot="icon" aria-hidden="true" />
+              <Button size="sm" data-dialog-open="task-form">
+                <Plus class="size-3.5" aria-hidden="true" />
+                New task
+              </Button>
             </EmptyState>
           </div>
         ) : (
           <>
-            <div
-              data-filter-hide-when-empty
-              hidden={matches.length === 0}
-              class="overflow-hidden rounded-card border border-line bg-surface shadow-card"
-            >
+            <div data-filter-hide-when-empty hidden={visibleIds.size === 0} class="overflow-hidden rounded-card border border-line bg-surface shadow-card">
               <div class="hidden items-center gap-3 border-b border-line bg-subtle/60 px-4 py-2.5 sm:px-5 md:flex" aria-hidden="true">
-                <span class="w-[18px]"></span>
+                <span class="w-[18px]" />
                 <span class:list={[header, 'flex-1']}>Task</span>
                 <span class:list={[header, 'hidden w-40 lg:block']}>Project</span>
                 <span class:list={[header, 'w-20']}>Priority</span>
-                <span class:list={[header, 'w-6']}></span>
+                <span class:list={[header, 'w-6']} />
                 <span class:list={[header, 'w-28 text-right']}>Due</span>
                 <span class:list={[header, 'w-32 pl-2']}>Status</span>
-                <span class="w-7"></span>
+                <span class="w-7" />
               </div>
               <ul aria-label="Tasks">
-                {data.tasks.map((task) => (
-                  <TaskRow task={task} timeZone={Astro.locals.timeZone} hidden={!matchIds.has(task.id)} />
+                {tasks.map((task) => (
+                  <TaskRow task={task} timeZone={Astro.locals.timeZone} people={people} hidden={!visibleIds.has(task.id)} />
                 ))}
               </ul>
             </div>
-            <div data-filter-empty hidden={matches.length > 0} class="rounded-card border border-dashed border-line-strong bg-surface/60">
-              <EmptyState title="No matching tasks" description="Try another keyword, a project name or a teammate.">
+            <div data-filter-empty hidden={visibleIds.size > 0} class="rounded-card border border-dashed border-line-strong bg-surface/60">
+              <EmptyState title="No matching tasks" description="Try another keyword, a project name or a teammate, or clear the filters.">
                 <SearchX slot="icon" aria-hidden="true" />
                 <Button size="sm" data-filter-clear>
-                  Clear search
+                  Clear filters
                 </Button>
               </EmptyState>
             </div>
@@ -101,4 +130,6 @@ const header = 'text-xs font-medium text-fg-subtle';
       }
     </div>
   </div>
+
+  <TaskFormDialog people={people} projects={projects} assigneeId={user.id} />
 </AppLayout>

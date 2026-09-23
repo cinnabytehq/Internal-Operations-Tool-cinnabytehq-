@@ -1,14 +1,14 @@
 /**
- * Request detail interactions: status changes, approval, assignment,
- * comments, copy link and delete.
+ * Request detail interactions, all through the REST API:
+ * status, priority and assignee (PATCH /api/requests/:id), approve / reject
+ * (POST /api/approvals/:id/…), comments, copy link and delete.
  *
  * After a successful change the page reloads so the workflow, timeline and
- * details all come fresh from the server (the single source of truth), and
- * a toast confirms what happened.
+ * details all come fresh from the server, and a toast confirms the change.
  */
-import { actions } from 'astro:actions';
-import type { RequestStatus } from '@/types';
-import { REQUEST_STATUS_META } from '@/lib/meta';
+import type { Priority, RequestStatus, UpdateRequestInput } from '@/types';
+import { ApiError, api } from '@/lib/api/browser';
+import { PRIORITY_META, REQUEST_STATUS_META } from '@/lib/meta';
 import { flashToast, toast, toastError } from './toast';
 import { setLoading } from './ui';
 
@@ -16,61 +16,67 @@ const root = document.querySelector<HTMLElement>('[data-request-id]');
 
 if (root) {
   const id = root.dataset.requestId!;
+  const approvalId = root.dataset.approvalId;
 
   const reloadWith = (title: string, description?: string) => {
     flashToast({ title, description });
     window.location.reload();
   };
 
+  async function update(control: HTMLElement, input: UpdateRequestInput, title: string, description?: string) {
+    setLoading(control, true);
+    try {
+      await api.updateRequest(id, input);
+      reloadWith(title, description);
+    } catch (error) {
+      setLoading(control, false);
+      toastError(error, "Couldn't update the request");
+    }
+  }
+
   document.addEventListener('click', async (event) => {
     const target = event.target as Element;
 
-    // Status change (status menu or "Next step" buttons)
     const statusControl = target.closest<HTMLElement>('[data-request-status]');
-    if (statusControl && !statusControl.hasAttribute('disabled')) {
+    if (statusControl && statusControl.getAttribute('aria-checked') !== 'true') {
       const status = statusControl.dataset.requestStatus as RequestStatus;
-      if (statusControl.getAttribute('aria-checked') === 'true') return;
-      setLoading(statusControl, true);
-      const { error } = await actions.requests.update({ id, status });
-      if (error) {
-        setLoading(statusControl, false);
-        toastError(error);
-        return;
-      }
-      reloadWith('Request status updated', `Moved to ${REQUEST_STATUS_META[status].label}.`);
+      await update(statusControl, { status }, 'Request status updated', `Moved to ${REQUEST_STATUS_META[status].label}.`);
       return;
     }
 
-    // Approve
-    const approveButton = target.closest<HTMLElement>('[data-request-approve]');
-    if (approveButton) {
-      setLoading(approveButton, true);
-      const { error } = await actions.requests.approve({ id });
-      if (error) {
-        setLoading(approveButton, false);
-        toastError(error);
-        return;
-      }
-      reloadWith('Request approved', 'It has moved to In progress.');
+    const priorityControl = target.closest<HTMLElement>('[data-request-priority]');
+    if (priorityControl && priorityControl.getAttribute('aria-checked') !== 'true') {
+      const priority = priorityControl.dataset.requestPriority as Priority;
+      await update(priorityControl, { priority }, 'Priority updated', `Set to ${PRIORITY_META[priority].label}.`);
       return;
     }
 
-    // Assignee
-    const assigneeItem = target.closest<HTMLElement>('[data-request-assignee]');
-    if (assigneeItem) {
-      if (assigneeItem.getAttribute('aria-checked') === 'true') return;
-      const assigneeId = assigneeItem.dataset.requestAssignee ?? '';
-      const { error } = await actions.requests.update({ id, assigneeId });
-      if (error) {
-        toastError(error);
-        return;
-      }
-      const name = assigneeItem.querySelector('.truncate')?.textContent?.trim();
-      reloadWith(assigneeId ? 'Assignee updated' : 'Request unassigned', assigneeId ? `Assigned to ${name}.` : undefined);
+    const assigneeControl = target.closest<HTMLElement>('[data-request-assignee]');
+    if (assigneeControl && assigneeControl.getAttribute('aria-checked') !== 'true') {
+      const assigneeId = assigneeControl.dataset.requestAssignee || null;
+      const name = assigneeControl.dataset.name;
+      await update(
+        assigneeControl,
+        { assignee_id: assigneeId },
+        assigneeId ? 'Assignee updated' : 'Request unassigned',
+        name ? `Assigned to ${name}.` : undefined,
+      );
       return;
     }
 
-    // Copy link
+    const approveControl = target.closest<HTMLElement>('[data-approval-approve]');
+    if (approveControl) {
+      setLoading(approveControl, true);
+      try {
+        await api.approve(approveControl.dataset.approvalApprove!);
+        reloadWith('Request approved', 'It has moved to In progress.');
+      } catch (error) {
+        setLoading(approveControl, false);
+        toastError(error, "Couldn't approve the request");
+      }
+      return;
+    }
+
     if (target.closest('[data-copy-link]')) {
       try {
         await navigator.clipboard.writeText(window.location.href);
@@ -81,30 +87,62 @@ if (root) {
       return;
     }
 
-    // Delete (confirmed in the dialog)
     const deleteButton = target.closest<HTMLElement>('[data-confirm-delete]');
     if (deleteButton) {
       setLoading(deleteButton, true);
-      const { error } = await actions.requests.delete({ id });
-      if (error) {
+      try {
+        await api.deleteRequest(id);
+        flashToast({ title: 'Request deleted', description: 'Its history is kept in the activity log.' });
+        window.location.href = '/requests';
+      } catch (error) {
         setLoading(deleteButton, false);
-        toastError(error);
-        return;
+        toastError(error, "Couldn't delete the request");
       }
-      flashToast({ title: 'Request deleted', description: `${id} was removed.` });
-      window.location.href = '/requests';
     }
   });
 
-  // Comments
+  /* ─── Reject (reason required) ─── */
+  const rejectForm = document.getElementById('reject-form') as HTMLFormElement | null;
+  const reason = document.getElementById('reject-reason') as HTMLTextAreaElement | null;
+  const reasonError = document.getElementById('reject-reason-error');
+
+  const setReasonError = (message: string) => {
+    if (reasonError) reasonError.textContent = message;
+    if (message) reason?.setAttribute('aria-invalid', 'true');
+    else reason?.removeAttribute('aria-invalid');
+  };
+
+  rejectForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const comment = reason?.value.trim() ?? '';
+    if (comment.length < 3) {
+      setReasonError('Give the requester a short reason (at least 3 characters).');
+      reason?.focus();
+      return;
+    }
+    if (!approvalId) return;
+    const button = document.querySelector<HTMLButtonElement>('button[form="reject-form"]');
+    setLoading(button, true);
+    try {
+      await api.reject(approvalId, comment);
+      reloadWith('Request rejected', 'The requester can see your reason.');
+    } catch (error) {
+      setLoading(button, false);
+      if (error instanceof ApiError && error.fields?.comment) setReasonError(error.fields.comment);
+      else toastError(error, "Couldn't reject the request");
+    }
+  });
+  reason?.addEventListener('input', () => setReasonError(''));
+
+  /* ─── Comments ─── */
   const form = document.getElementById('comment-form') as HTMLFormElement | null;
   const input = document.getElementById('comment-input') as HTMLTextAreaElement | null;
   const errorEl = document.getElementById('comment-input-error');
 
   const showError = (message: string) => {
     if (errorEl) errorEl.textContent = message;
-    input?.setAttribute('aria-invalid', String(Boolean(message)));
-    if (!message) input?.removeAttribute('aria-invalid');
+    if (message) input?.setAttribute('aria-invalid', 'true');
+    else input?.removeAttribute('aria-invalid');
   };
 
   form?.addEventListener('submit', async (event) => {
@@ -117,13 +155,13 @@ if (root) {
     }
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     setLoading(button, true);
-    const { error } = await actions.requests.comment({ id, comment });
-    if (error) {
+    try {
+      await api.addComment(id, comment);
+      reloadWith('Comment added');
+    } catch (error) {
       setLoading(button, false);
-      toastError(error);
-      return;
+      toastError(error, "Couldn't add the comment");
     }
-    reloadWith('Comment added');
   });
 
   input?.addEventListener('input', () => showError(''));

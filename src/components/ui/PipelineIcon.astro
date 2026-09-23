@@ -11,10 +11,12 @@ interface Props {
   step: number;
   total: number;
   size?: number;
+  /** Declined: a filled circle with a cross instead of the ring */
+  rejected?: boolean;
   class?: string;
 }
 
-const { step, total, size = 14, class: className } = Astro.props;
+const { step, total, size = 14, rejected = false, class: className } = Astro.props;
 
 const radius = 5.75;
 const circumference = 2 * Math.PI * radius;
@@ -34,7 +36,12 @@ const complete = step >= total;
   aria-hidden="true"
 >
   {
-    complete ? (
+    rejected ? (
+      <>
+        <circle cx="8" cy="8" r="7" fill="currentColor" />
+        <path d="M5.6 5.6 10.4 10.4M10.4 5.6 5.6 10.4" stroke="var(--surface)" stroke-width="1.7" stroke-linecap="round" />
+      </>
+    ) : complete ? (
       <>
         <circle cx="8" cy="8" r="7" fill="currentColor" />
         <path

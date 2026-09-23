@@ -1,67 +1,50 @@
 /**
- * Settings page: profile (saved through an action), notification and
+ * Settings page: profile (PATCH /api/profiles/:id), notification and
  * workspace preferences (kept in localStorage until the API supports them),
  * and the section navigation highlight.
  */
-import { actions, isInputError } from 'astro:actions';
+import { api } from '@/lib/api/browser';
+import { clearErrorsOnInput, clearFieldErrors, setFieldError, showApiFieldErrors } from './forms';
 import { flashToast, toast, toastError } from './toast';
 import { readStorage, setLoading, writeStorage } from './ui';
 
 const NOTIFICATIONS_KEY = 'cinnabyte:notification-preferences';
 const WORKSPACE_KEY = 'cinnabyte:workspace-name';
 
-function setFieldError(input: HTMLInputElement, message: string) {
-  const error = document.querySelector(`[data-error-for="${input.id}"]`);
-  if (error) error.textContent = message;
-  if (message) input.setAttribute('aria-invalid', 'true');
-  else input.removeAttribute('aria-invalid');
-}
-
 /* ── Profile ── */
 const profileForm = document.getElementById('profile-form') as HTMLFormElement | null;
-profileForm?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const fields = {
-    name: profileForm.elements.namedItem('name') as HTMLInputElement,
-    email: profileForm.elements.namedItem('email') as HTMLInputElement,
-    title: profileForm.elements.namedItem('title') as HTMLInputElement,
-  };
-  const checks: Array<[HTMLInputElement, string]> = [
-    [fields.name, fields.name.value.trim().length < 2 ? 'Enter your full name.' : ''],
-    [fields.email, /^\S+@\S+\.\S+$/.test(fields.email.value.trim()) ? '' : 'Enter a valid email address.'],
-    [fields.title, fields.title.value.trim().length < 2 ? 'Enter your job title.' : ''],
-  ];
-  checks.forEach(([input, message]) => setFieldError(input, message));
-  const firstInvalid = checks.find(([, message]) => message)?.[0];
-  if (firstInvalid) {
-    firstInvalid.focus();
-    return;
-  }
+if (profileForm) {
+  const profileId = profileForm.dataset.profileId!;
+  const value = (name: string) => (profileForm.elements.namedItem(name) as HTMLInputElement).value.trim();
 
-  const button = profileForm.querySelector<HTMLButtonElement>('button[type="submit"]');
-  setLoading(button, true);
-  const { error } = await actions.profile.update({
-    name: fields.name.value.trim(),
-    email: fields.email.value.trim(),
-    title: fields.title.value.trim(),
-  });
-  if (error) {
-    setLoading(button, false);
-    if (isInputError(error)) {
-      for (const [name, messages] of Object.entries(error.fields)) {
-        const input = fields[name as keyof typeof fields];
-        if (input) setFieldError(input, (messages as string[])[0] ?? '');
-      }
+  profileForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearFieldErrors(profileForm);
+    const input = {
+      full_name: value('full_name'),
+      job_title: value('job_title') || null,
+      team: value('team') || null,
+    };
+    if (input.full_name.length < 2) {
+      setFieldError(profileForm, 'full_name', 'Enter your full name.');
+      (profileForm.elements.namedItem('full_name') as HTMLInputElement).focus();
       return;
     }
-    toastError(error);
-    return;
-  }
-  flashToast({ title: 'Profile updated', description: 'Your changes are visible to the team.' });
-  window.location.reload();
-});
 
-profileForm?.addEventListener('input', (event) => setFieldError(event.target as HTMLInputElement, ''));
+    const button = profileForm.querySelector<HTMLButtonElement>('button[type="submit"]');
+    setLoading(button, true);
+    try {
+      await api.updateProfile(profileId, input);
+      flashToast({ title: 'Profile updated', description: 'Your changes are visible to the team.' });
+      window.location.reload();
+    } catch (error) {
+      setLoading(button, false);
+      if (!showApiFieldErrors(profileForm, error)) toastError(error, "Couldn't update your profile");
+    }
+  });
+
+  clearErrorsOnInput(profileForm);
+}
 
 /* ── Notifications ── */
 const notificationGroup = document.querySelector('[data-notification-settings]');
@@ -89,16 +72,16 @@ if (workspaceForm && workspaceInput) {
     event.preventDefault();
     const name = workspaceInput.value.trim();
     if (name.length < 2) {
-      setFieldError(workspaceInput, 'Use at least 2 characters.');
+      setFieldError(workspaceForm, workspaceInput.name, 'Use at least 2 characters.');
       workspaceInput.focus();
       return;
     }
-    setFieldError(workspaceInput, '');
+    setFieldError(workspaceForm, workspaceInput.name, null);
     writeStorage(WORKSPACE_KEY, name);
     document.querySelectorAll('[data-workspace-name]').forEach((element) => (element.textContent = name));
     toast({ title: 'Workspace updated', description: `Renamed to ${name}.` });
   });
-  workspaceInput.addEventListener('input', () => setFieldError(workspaceInput, ''));
+  clearErrorsOnInput(workspaceForm);
 }
 
 /* ── Section navigation highlight ── */

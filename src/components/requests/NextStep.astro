@@ -3,33 +3,32 @@
  * "Next step" — tells people what has to happen for this request to move
  * forward, and offers the action when they're the one who can take it.
  */
-import type { RequestStatus, RequestWithRelations, User } from '@/types';
+import type { Profile, RequestStatus, RequestWithRelations } from '@/types';
 import ArrowRight from '@lucide/astro/icons/arrow-right';
 import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
+import CircleX from '@lucide/astro/icons/circle-x';
 import Hourglass from '@lucide/astro/icons/hourglass';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
 import Sparkles from '@lucide/astro/icons/sparkles';
 import Button from '@/components/ui/Button.astro';
 import { formatRelative } from '@/lib/dates';
 import { CATEGORY_META } from '@/lib/meta';
+import { firstName } from '@/lib/utils';
+import { requiresApproval } from '@/lib/workflow';
 
 interface Props {
   request: RequestWithRelations;
-  user: User;
+  user: Profile;
 }
 
 const { request, user } = Astro.props;
 
-interface Action {
-  label: string;
-  variant: 'primary' | 'secondary';
-  status?: RequestStatus;
-  approve?: boolean;
-}
+type Action =
+  | { kind: 'status'; label: string; variant: 'primary' | 'secondary'; status: RequestStatus }
+  | { kind: 'approve' | 'reject'; label: string; variant: 'primary' | 'secondary' | 'danger-ghost' };
 
 const approval = request.approval;
-const needsApproval = CATEGORY_META[request.category].requiresApproval;
-const assigneeName = request.assignee?.name ?? 'nobody yet';
+const canDecide = approval?.status === 'pending' && (approval.approver_id === user.id || user.role === 'admin');
 
 let icon = Sparkles;
 let title = '';
@@ -39,45 +38,57 @@ let tone: 'accent' | 'warning' | 'neutral' = 'accent';
 
 if (request.status === 'new') {
   title = 'Triage this request';
-  if (needsApproval && !approval) {
+  if (requiresApproval(request) && approval?.status !== 'approved') {
     description = `${CATEGORY_META[request.category].label} requests need an approval before work starts. Sending it for review routes it to the right approver automatically.`;
-    actions = [{ label: 'Send for approval', variant: 'primary', status: 'in_review' }];
+    actions = [{ kind: 'status', label: 'Send for approval', variant: 'primary', status: 'in_review' }];
   } else {
     description = 'Check the details, then start work or move it to review if it needs more discussion.';
     actions = [
-      { label: 'Start work', variant: 'primary', status: 'in_progress' },
-      { label: 'Move to review', variant: 'secondary', status: 'in_review' },
+      { kind: 'status', label: 'Start work', variant: 'primary', status: 'in_progress' },
+      { kind: 'status', label: 'Move to review', variant: 'secondary', status: 'in_review' },
     ];
   }
 } else if (request.status === 'in_review' && approval?.status === 'pending') {
-  icon = ShieldCheck;
+  icon = canDecide ? ShieldCheck : Hourglass;
   tone = 'warning';
-  if (approval.approverId === user.id) {
+  if (canDecide) {
+    const onBehalf = approval.approver_id !== user.id ? ` (on behalf of ${approval.approver.full_name})` : '';
     title = 'Your approval is needed';
-    description = `${request.requester.name} is waiting on your decision. Approving moves the request straight to In progress.`;
-    actions = [{ label: 'Approve request', variant: 'primary', approve: true }];
+    description = `${request.requester.full_name} is waiting on a decision${onBehalf}. Approving moves the request straight to In progress.`;
+    actions = [
+      { kind: 'approve', label: 'Approve', variant: 'primary' },
+      { kind: 'reject', label: 'Reject', variant: 'secondary' },
+    ];
   } else {
-    icon = Hourglass;
-    title = `Waiting on ${approval.approver.name}`;
-    description = `Approval was requested ${formatRelative(approval.requestedAt)}. Work can start as soon as it's approved.`;
+    title = `Waiting on ${approval.approver.full_name}`;
+    description = `Approval was requested ${formatRelative(approval.created_at)}. Work can start as soon as it's approved.`;
   }
 } else if (request.status === 'in_review') {
   title = 'Ready to start';
   description = 'Review is done. Move it forward when the assignee picks it up.';
-  actions = [{ label: 'Start work', variant: 'primary', status: 'in_progress' }];
+  actions = [{ kind: 'status', label: 'Start work', variant: 'primary', status: 'in_progress' }];
 } else if (request.status === 'in_progress') {
   icon = ArrowRight;
-  title = `In progress with ${assigneeName}`;
+  title = `In progress with ${request.assignee?.full_name ?? 'nobody yet'}`;
   description = request.assignee
     ? 'Mark it as completed once the work has been delivered to the requester.'
     : 'Assign someone so the requester knows who is working on it.';
-  actions = [{ label: 'Mark as completed', variant: 'primary', status: 'completed' }];
+  actions = [{ kind: 'status', label: 'Mark as completed', variant: 'primary', status: 'completed' }];
+} else if (request.status === 'rejected') {
+  icon = CircleX;
+  tone = 'neutral';
+  title = 'Request rejected';
+  description =
+    approval?.status === 'rejected' && approval.comment
+      ? `${firstName(approval.approver.full_name)}: “${approval.comment}”`
+      : `Closed ${formatRelative(request.updated_at)}. Reopen it to start over with changes.`;
+  actions = [{ kind: 'status', label: 'Reopen as new', variant: 'secondary', status: 'new' }];
 } else {
   icon = CircleCheckBig;
   tone = 'neutral';
   title = 'Request completed';
-  description = `Closed ${formatRelative(request.updatedAt)}. Reopen it if more work is needed.`;
-  actions = [{ label: 'Reopen request', variant: 'secondary', status: 'in_progress' }];
+  description = `Closed ${formatRelative(request.updated_at)}. Reopen it if more work is needed.`;
+  actions = [{ kind: 'status', label: 'Reopen request', variant: 'secondary', status: 'in_progress' }];
 }
 
 const Icon = icon;
@@ -107,8 +118,9 @@ const toneClasses = {
           <Button
             variant={action.variant}
             size="sm"
-            data-request-status={action.status}
-            data-request-approve={action.approve ? '' : undefined}
+            data-request-status={action.kind === 'status' ? action.status : undefined}
+            data-approval-approve={action.kind === 'approve' ? approval?.id : undefined}
+            data-dialog-open={action.kind === 'reject' ? 'reject-approval' : undefined}
             class="max-sm:flex-1"
           >
             {action.label}

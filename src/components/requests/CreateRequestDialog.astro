@@ -3,9 +3,9 @@
  * "New request" form in a modal. Lives in the app layout so it can be
  * opened from anywhere (buttons with data-dialog-open="create-request",
  * the command palette, or the "C" shortcut).
- * Behaviour: src/scripts/createRequest.ts → actions.requests.create.
+ * Behaviour: src/scripts/createRequest.ts → POST /api/requests.
  */
-import type { User } from '@/types';
+import type { Profile } from '@/types';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
 import Button from '@/components/ui/Button.astro';
 import Dialog from '@/components/ui/Dialog.astro';
@@ -17,10 +17,10 @@ import Textarea from '@/components/ui/Textarea.astro';
 import { CATEGORY_META, PRIORITIES, PRIORITY_META, REQUEST_CATEGORIES } from '@/lib/meta';
 
 interface Props {
-  users: User[];
+  people: Profile[];
 }
 
-const { users } = Astro.props;
+const { people } = Astro.props;
 ---
 
 <Dialog
@@ -71,12 +71,13 @@ const { users } = Astro.props;
       </Field>
 
       <Field label="Assignee" for="request-assignee" optional>
-        <Select id="request-assignee" name="assigneeId">
+        <Select id="request-assignee" name="assignee_id">
           <option value="">Unassigned</option>
           {
-            users.map((user) => (
-              <option value={user.id}>
-                {user.name} · {user.team}
+            people.map((person) => (
+              <option value={person.id}>
+                {person.full_name}
+                {person.team && ` · ${person.team}`}
               </option>
             ))
           }

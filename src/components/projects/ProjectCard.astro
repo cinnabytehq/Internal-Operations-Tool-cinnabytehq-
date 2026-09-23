@@ -1,11 +1,11 @@
 ---
 import type { ProjectWithRelations } from '@/types';
-import CalendarDays from '@lucide/astro/icons/calendar-days';
+import Clock from '@lucide/astro/icons/clock';
 import SquareCheckBig from '@lucide/astro/icons/square-check-big';
 import Avatar from '@/components/ui/Avatar.astro';
 import ProgressBar from '@/components/ui/ProgressBar.astro';
 import ProjectStatusBadge from './ProjectStatusBadge.astro';
-import { describeDue } from '@/lib/dates';
+import { formatDateTime, formatRelative } from '@/lib/dates';
 
 interface Props {
   project: ProjectWithRelations;
@@ -13,53 +13,48 @@ interface Props {
 }
 
 const { project, timeZone } = Astro.props;
-const due = describeDue(project.dueDate, timeZone, project.status === 'completed');
 ---
 
 <article
   class="group relative flex flex-col rounded-card border border-line bg-surface p-5 shadow-card transition-[border-color,box-shadow] duration-150 hover:border-line-strong"
 >
   <div class="flex items-start justify-between gap-3">
-    <div class="min-w-0">
-      <p class="font-mono text-[11px] text-fg-subtle">{project.id}</p>
-      <h2 class="mt-1 text-[15px] font-semibold tracking-tight text-fg">
-        <a href={`/projects/${project.id}`} class="outline-none after:absolute after:inset-0 after:rounded-card focus-visible:after:outline-2 focus-visible:after:outline-ring">
-          {project.name}
-        </a>
-      </h2>
-    </div>
+    <h2 class="min-w-0 text-[15px] font-semibold tracking-tight text-fg">
+      <a
+        href={`/projects/${project.id}`}
+        class="outline-none after:absolute after:inset-0 after:rounded-card focus-visible:after:outline-2 focus-visible:after:outline-ring"
+      >
+        {project.name}
+      </a>
+    </h2>
     <ProjectStatusBadge status={project.status} class="shrink-0" />
   </div>
 
   <p class="mt-2 line-clamp-2 text-[13px] leading-relaxed text-fg-muted">{project.description}</p>
 
-  <div class="mt-5">
+  <div class="mt-auto pt-5">
     <div class="mb-2 flex items-baseline justify-between">
       <span class="text-xs text-fg-muted">Progress</span>
       <span class="text-sm font-semibold text-fg">{project.progress}%</span>
     </div>
-    <ProgressBar
-      value={project.progress}
-      label={`${project.name} progress`}
-      tone={project.status === 'at_risk' ? 'warning' : 'accent'}
-    />
+    <ProgressBar value={project.progress} label={`${project.name} progress`} tone={project.status === 'on_hold' ? 'warning' : 'accent'} />
   </div>
 
   <div class="mt-5 flex items-center justify-between gap-3 border-t border-line pt-4 text-xs text-fg-muted">
     <span class="flex min-w-0 items-center gap-2">
       <Avatar user={project.owner} size="xs" />
-      <span class="truncate">{project.owner.name}</span>
+      <span class="truncate">{project.owner.full_name}</span>
     </span>
     <span class="flex shrink-0 items-center gap-3">
-      <span class="flex items-center gap-1" title={`${project.completedTaskCount} of ${project.taskCount} tasks done`}>
+      <span class="flex items-center gap-1" title={`${project.completed_task_count} of ${project.task_count} tasks completed`}>
         <SquareCheckBig class="size-3.5 text-fg-subtle" aria-hidden="true" />
-        <span class="tabular">{project.completedTaskCount}/{project.taskCount}</span>
-        <span class="sr-only">tasks done</span>
+        <span class="tabular">{project.completed_task_count}/{project.task_count}</span>
+        <span class="sr-only">tasks completed</span>
       </span>
-      <span class:list={['flex items-center gap-1', due.tone === 'overdue' && 'text-danger-ink']}>
-        <CalendarDays class="size-3.5 text-fg-subtle" aria-hidden="true" />
-        <span class="sr-only">Due</span>
-        {due.label}
+      <span class="flex items-center gap-1" title={`Updated ${formatDateTime(project.updated_at, timeZone)}`}>
+        <Clock class="size-3.5 text-fg-subtle" aria-hidden="true" />
+        <span class="sr-only">Updated</span>
+        {formatRelative(project.updated_at)}
       </span>
     </span>
   </div>

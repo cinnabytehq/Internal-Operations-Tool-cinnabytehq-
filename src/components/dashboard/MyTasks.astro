@@ -1,26 +1,27 @@
 ---
-/** My tasks (server island) — the signed-in user's tasks, open first. */
+/** My tasks (server island) — GET /api/tasks?view=mine, open first. */
 import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
 import EmptyState from '@/components/ui/EmptyState.astro';
 import ErrorState from '@/components/ui/ErrorState.astro';
 import TaskRow from '@/components/tasks/TaskRow.astro';
-import { getTasks } from '@/services/tasks';
+import { serverApi } from '@/lib/api/server';
 import type { TaskWithRelations } from '@/types';
 
 let tasks: TaskWithRelations[] | null = null;
+let loadError = '';
 try {
-  tasks = (await getTasks({ view: 'mine' })).slice(0, 6);
-} catch {
-  tasks = null;
+  tasks = (await serverApi(Astro).getTasks({ view: 'mine' })).data.slice(0, 6);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : '';
 }
 const { timeZone } = Astro.locals;
-const open = tasks?.filter((task) => task.status !== 'done').length ?? 0;
+const open = tasks?.filter((task) => task.status !== 'completed').length ?? 0;
 const done = (tasks?.length ?? 0) - open;
 ---
 
 {
   tasks === null ? (
-    <ErrorState compact description="We couldn't load your tasks." />
+    <ErrorState compact description={loadError || "We couldn't load your tasks."} />
   ) : tasks.length === 0 ? (
     <EmptyState compact title="You're all caught up" description="Tasks assigned to you will show up here.">
       <CircleCheckBig slot="icon" aria-hidden="true" />

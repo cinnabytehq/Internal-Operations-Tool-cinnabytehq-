@@ -2,58 +2,68 @@
 /**
  * Workflow stepper: New → In review → In progress → Completed.
  * Shows where the request is, when each stage was reached and whether an
- * approval is holding it.
+ * approval is holding it. A rejected request stops at review.
  */
-import type { ActivityWithActor, RequestStatus, RequestWithRelations } from '@/types';
+import type { ActivityWithRelations, RequestStatus, RequestWithRelations } from '@/types';
 import Check from '@lucide/astro/icons/check';
 import ShieldCheck from '@lucide/astro/icons/shield-check';
+import X from '@lucide/astro/icons/x';
 import { formatDate } from '@/lib/dates';
-import { REQUEST_STATUSES, REQUEST_STATUS_META } from '@/lib/meta';
-import { cn } from '@/lib/utils';
+import { REQUEST_STATUS_META } from '@/lib/meta';
+import { cn, firstName } from '@/lib/utils';
 
 interface Props {
   request: RequestWithRelations;
-  timeline: ActivityWithActor[];
+  /** The request's history, oldest first */
+  timeline: ActivityWithRelations[];
   timeZone: string;
 }
 
 const { request, timeline, timeZone } = Astro.props;
+const rejected = request.status === 'rejected';
 const currentStep = REQUEST_STATUS_META[request.status].step;
+const STAGES: RequestStatus[] = ['new', 'in_review', 'in_progress', 'completed'];
 
-/** When did the request last enter each stage? */
+/** When did the request last enter a stage? */
 function reachedAt(status: RequestStatus): string | null {
-  if (status === 'new') return request.createdAt;
-  const event = [...timeline].reverse().find((item) => item.type === 'status_changed' && item.meta?.to === status);
-  return event?.createdAt ?? null;
+  if (status === 'new') return request.created_at;
+  const event = [...timeline].reverse().find((item) => item.metadata.to === status);
+  return event?.created_at ?? null;
 }
 
-const steps = REQUEST_STATUSES.map((status) => {
+type StepState = 'done' | 'current' | 'upcoming' | 'rejected';
+
+const steps = STAGES.map((status) => {
   const step = REQUEST_STATUS_META[status].step;
-  const state = step < currentStep || request.status === 'completed' ? 'done' : step === currentStep ? 'current' : 'upcoming';
+  let state: StepState =
+    step < currentStep || request.status === 'completed' ? 'done' : step === currentStep ? 'current' : 'upcoming';
+  if (rejected && status === 'in_review') state = 'rejected';
+
   let note: string | null = null;
-  if (status === 'in_review' && request.approval) {
-    note =
-      request.approval.status === 'pending'
-        ? `Awaiting ${request.approval.approver.name.split(' ')[0]}`
-        : `Approved by ${request.approval.approver.name.split(' ')[0]}`;
+  const approver = request.approval ? firstName(request.approval.approver.full_name) : null;
+  if (status === 'in_review' && rejected) {
+    note = approver && request.approval?.status === 'rejected' ? `Rejected by ${approver}` : 'Rejected';
+  } else if (status === 'in_review' && request.approval) {
+    note = request.approval.status === 'pending' ? `Awaiting ${approver}` : `Approved by ${approver}`;
   } else if (state !== 'upcoming') {
     const at = reachedAt(status);
     note = at ? formatDate(at, timeZone) : null;
   }
-  return { status, label: REQUEST_STATUS_META[status].label, state, note, step };
+  const label = status === 'in_review' && rejected ? 'Rejected' : REQUEST_STATUS_META[status].label;
+  return { status, label, state, note, step };
 });
 ---
 
 <ol class="grid grid-cols-4" aria-label="Request workflow">
   {
     steps.map((step, index) => (
-      <li class="relative flex flex-col items-center text-center" aria-current={step.state === 'current' ? 'step' : undefined}>
+      <li class="relative flex flex-col items-center text-center" aria-current={step.state === 'current' || step.state === 'rejected' ? 'step' : undefined}>
         {index > 0 && (
           <span
             aria-hidden="true"
             class={cn(
               'absolute top-3.5 right-1/2 h-0.5 w-full -translate-y-1/2',
-              step.state === 'upcoming' ? 'bg-line' : 'bg-accent',
+              step.state === 'upcoming' ? 'bg-line' : step.state === 'rejected' ? 'bg-status-rejected' : 'bg-accent',
             )}
           />
         )}
@@ -62,15 +72,35 @@ const steps = REQUEST_STATUSES.map((status) => {
             'relative z-10 flex size-7 items-center justify-center rounded-full text-xs font-semibold ring-4 ring-surface',
             step.state === 'done' && 'bg-accent text-accent-fg',
             step.state === 'current' && 'border-2 border-accent bg-accent-soft text-accent-ink',
+            step.state === 'rejected' && 'bg-status-rejected text-surface',
             step.state === 'upcoming' && 'border border-line-strong bg-surface text-fg-subtle',
+            rejected && step.state === 'upcoming' && 'opacity-50',
           )}
         >
-          {step.state === 'done' ? <Check class="size-3.5" stroke-width={3} aria-hidden="true" /> : step.step}
+          {step.state === 'done' ? (
+            <Check class="size-3.5" stroke-width={3} aria-hidden="true" />
+          ) : step.state === 'rejected' ? (
+            <X class="size-3.5" stroke-width={3} aria-hidden="true" />
+          ) : (
+            step.step
+          )}
         </span>
-        <span class={cn('mt-2 text-xs font-medium sm:text-[13px]', step.state === 'upcoming' ? 'text-fg-subtle' : 'text-fg')}>
+        <span
+          class={cn(
+            'mt-2 text-xs font-medium sm:text-[13px]',
+            step.state === 'upcoming' ? 'text-fg-subtle' : 'text-fg',
+            rejected && step.state === 'upcoming' && 'line-through decoration-line-strong',
+          )}
+        >
           {step.label}
           <span class="sr-only">
-            {step.state === 'done' ? ' (done)' : step.state === 'current' ? ' (current stage)' : ' (upcoming)'}
+            {step.state === 'done'
+              ? ' (done)'
+              : step.state === 'current'
+                ? ' (current stage)'
+                : step.state === 'rejected'
+                  ? ' (request was rejected here)'
+                  : ' (upcoming)'}
           </span>
         </span>
         {step.note && (
