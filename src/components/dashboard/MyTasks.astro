@@ -1,0 +1,41 @@
+---
+/** My tasks (server island) — the signed-in user's tasks, open first. */
+import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import TaskRow from '@/components/tasks/TaskRow.astro';
+import { getTasks } from '@/services/tasks';
+import type { TaskWithRelations } from '@/types';
+
+let tasks: TaskWithRelations[] | null = null;
+try {
+  tasks = (await getTasks({ view: 'mine' })).slice(0, 6);
+} catch {
+  tasks = null;
+}
+const { timeZone } = Astro.locals;
+const open = tasks?.filter((task) => task.status !== 'done').length ?? 0;
+const done = (tasks?.length ?? 0) - open;
+---
+
+{
+  tasks === null ? (
+    <ErrorState compact description="We couldn't load your tasks." />
+  ) : tasks.length === 0 ? (
+    <EmptyState compact title="You're all caught up" description="Tasks assigned to you will show up here.">
+      <CircleCheckBig slot="icon" aria-hidden="true" />
+    </EmptyState>
+  ) : (
+    <div class="animate-fade-in">
+      <p class="-mt-2 mb-1 text-[13px] text-fg-muted">
+        <span class="font-medium text-fg" data-count="open">{open}</span> open ·{' '}
+        <span data-count="completed">{done}</span> done
+      </p>
+      <ul>
+        {tasks.map((task) => (
+          <TaskRow task={task} timeZone={timeZone} variant="compact" />
+        ))}
+      </ul>
+    </div>
+  )
+}

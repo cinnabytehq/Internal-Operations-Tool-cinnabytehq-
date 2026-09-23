@@ -1,0 +1,36 @@
+---
+/**
+ * Friendly placeholder for lists with nothing in them.
+ * Slots: "icon", default (actions).
+ */
+import Inbox from '@lucide/astro/icons/inbox';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  title: string;
+  description?: string;
+  compact?: boolean;
+  class?: string;
+}
+
+const { title, description, compact = false, class: className } = Astro.props;
+---
+
+<div
+  class={cn('flex flex-col items-center justify-center text-center', compact ? 'px-4 py-8' : 'px-6 py-14', className)}
+>
+  <div
+    class="mb-4 flex size-10 items-center justify-center rounded-lg border border-line bg-subtle text-fg-muted shadow-xs [&_svg]:size-[18px]"
+  >
+    {Astro.slots.has('icon') ? <slot name="icon" /> : <Inbox aria-hidden="true" />}
+  </div>
+  <p class="text-sm font-semibold text-fg">{title}</p>
+  {description && <p class="mt-1 max-w-sm text-[13px] leading-relaxed text-fg-muted">{description}</p>}
+  {
+    Astro.slots.has('default') && (
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <slot />
+      </div>
+    )
+  }
+</div>

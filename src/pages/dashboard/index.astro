@@ -1,0 +1,82 @@
+---
+/**
+ * Overview dashboard. The page shell renders immediately; each section is
+ * a server island that streams in behind a skeleton — the same experience
+ * users will get once the data comes from a real API.
+ */
+import Plus from '@lucide/astro/icons/plus';
+import ArrowRight from '@lucide/astro/icons/arrow-right';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
+import Card from '@/components/ui/Card.astro';
+import ListSkeleton from '@/components/ui/ListSkeleton.astro';
+import KpiCards from '@/components/dashboard/KpiCards.astro';
+import KpiCardsSkeleton from '@/components/dashboard/KpiCardsSkeleton.astro';
+import MyTasks from '@/components/dashboard/MyTasks.astro';
+import ProjectsSummary from '@/components/dashboard/ProjectsSummary.astro';
+import RecentActivity from '@/components/dashboard/RecentActivity.astro';
+import RequestOverview from '@/components/dashboard/RequestOverview.astro';
+import RequestOverviewSkeleton from '@/components/dashboard/RequestOverviewSkeleton.astro';
+import { formatLongDate, greeting } from '@/lib/dates';
+import { firstName } from '@/lib/utils';
+
+const { user, timeZone } = Astro.locals;
+const today = new Date().toISOString();
+const viewAll =
+  'inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-fg-muted transition-colors hover:bg-subtle hover:text-fg';
+---
+
+<AppLayout title="Overview">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="text-[13px] text-fg-subtle">{formatLongDate(today, timeZone)}</p>
+      <h1 class="mt-1 text-2xl font-semibold tracking-tight text-fg">
+        {greeting(timeZone)}, {firstName(user.name)}
+      </h1>
+      <p class="mt-1 text-sm text-fg-muted">Here's what's happening across your workspace.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <Button href="/requests" variant="secondary" class="max-sm:flex-1">View requests</Button>
+      <Button variant="primary" data-dialog-open="create-request" class="max-sm:flex-1">
+        <Plus class="size-4" aria-hidden="true" />
+        New request
+      </Button>
+    </div>
+  </header>
+
+  <section aria-label="Key metrics" class="mt-7">
+    <KpiCards server:defer>
+      <KpiCardsSkeleton slot="fallback" />
+    </KpiCards>
+  </section>
+
+  <div class="mt-4 grid gap-4 lg:mt-5 lg:grid-cols-12 lg:gap-5">
+    <Card title="Request overview" class="lg:col-span-7">
+      <a slot="actions" href="/requests" class={viewAll}>View all <ArrowRight class="size-3.5" aria-hidden="true" /></a>
+      <RequestOverview server:defer>
+        <RequestOverviewSkeleton slot="fallback" />
+      </RequestOverview>
+    </Card>
+
+    <Card title="Recent activity" class="lg:col-span-5">
+      <a slot="actions" href="/activity" class={viewAll}>View all <ArrowRight class="size-3.5" aria-hidden="true" /></a>
+      <RecentActivity server:defer>
+        <ListSkeleton slot="fallback" rows={6} variant="activity" label="Loading activity" />
+      </RecentActivity>
+    </Card>
+
+    <Card title="My tasks" class="lg:col-span-7">
+      <a slot="actions" href="/tasks?view=mine" class={viewAll}>View all <ArrowRight class="size-3.5" aria-hidden="true" /></a>
+      <MyTasks server:defer>
+        <ListSkeleton slot="fallback" rows={6} variant="task" label="Loading tasks" />
+      </MyTasks>
+    </Card>
+
+    <Card title="Projects" class="lg:col-span-5">
+      <a slot="actions" href="/projects" class={viewAll}>View all <ArrowRight class="size-3.5" aria-hidden="true" /></a>
+      <ProjectsSummary server:defer>
+        <ListSkeleton slot="fallback" rows={4} variant="project" label="Loading projects" />
+      </ProjectsSummary>
+    </Card>
+  </div>
+</AppLayout>

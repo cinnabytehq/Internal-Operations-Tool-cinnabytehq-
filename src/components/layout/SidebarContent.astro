@@ -1,0 +1,109 @@
+---
+/**
+ * Sidebar body. Rendered twice: in the desktop <aside> (which becomes an
+ * icon rail on tablets or when collapsed) and inside the mobile drawer.
+ */
+import type { User } from '@/types';
+import Plus from '@lucide/astro/icons/plus';
+import ChevronsUpDown from '@lucide/astro/icons/chevrons-up-down';
+import X from '@lucide/astro/icons/x';
+import Avatar from '@/components/ui/Avatar.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+import Logo from './Logo.astro';
+import NavIcon from './NavIcon.astro';
+import ThemeSwitcher from './ThemeSwitcher.astro';
+import UserMenu from './UserMenu.astro';
+import { NAV_ITEMS, isActive } from './navigation';
+
+interface Props {
+  user: User;
+  pathname: string;
+  surface: 'desktop' | 'mobile';
+}
+
+const { user, pathname, surface } = Astro.props;
+const menuId = `${surface}-user-menu`;
+const tooltip =
+  'pointer-events-none absolute top-1/2 left-full z-50 ml-3 hidden -translate-y-1/2 rounded-md bg-fg px-2 py-1 text-xs font-medium whitespace-nowrap text-fg-inverse opacity-0 shadow-pop transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 rail:block';
+---
+
+<div class="flex h-full flex-col" data-sidebar-surface={surface}>
+  <div class="flex h-14 shrink-0 items-center justify-between gap-2 px-4 rail:justify-center rail:px-0">
+    <Logo />
+    {
+      surface === 'mobile' && (
+        <button
+          type="button"
+          data-dialog-close
+          class="inline-flex size-9 items-center justify-center rounded-md text-fg-muted hover:bg-subtle hover:text-fg"
+          aria-label="Close navigation"
+        >
+          <X class="size-4" aria-hidden="true" />
+        </button>
+      )
+    }
+  </div>
+
+  <div class="px-3 pt-1 pb-3 rail:px-0 rail:flex rail:justify-center">
+    <button
+      type="button"
+      data-dialog-open="create-request"
+      class="group relative flex h-9 w-full items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] font-medium text-fg shadow-xs transition-colors duration-150 hover:border-line-strong hover:bg-subtle pointer-coarse:h-11 rail:w-9 rail:justify-center rail:px-0"
+    >
+      <span class="flex size-5 items-center justify-center rounded bg-accent text-accent-fg">
+        <Plus class="size-3.5" aria-hidden="true" />
+      </span>
+      <span class="rail:sr-only">New request</span>
+      <Kbd class="ml-auto pointer-coarse:hidden rail:hidden">C</Kbd>
+      <span class={tooltip} aria-hidden="true">New request</span>
+    </button>
+  </div>
+
+  <nav aria-label="Main" class="px-3 rail:px-0">
+    <ul class="flex flex-col gap-0.5 rail:items-center">
+      {
+        NAV_ITEMS.map((item) => {
+          const active = isActive(pathname, item.href);
+          return (
+            <li class="rail:w-auto w-full">
+              <a
+                href={item.href}
+                aria-current={active ? 'page' : undefined}
+                class="group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium text-fg-muted transition-colors duration-150 hover:bg-subtle hover:text-fg aria-[current=page]:bg-surface aria-[current=page]:text-fg aria-[current=page]:shadow-xs aria-[current=page]:ring-1 aria-[current=page]:ring-line pointer-coarse:h-11 rail:size-9 rail:justify-center rail:px-0"
+              >
+                <NavIcon
+                  name={item.icon}
+                  class="size-4 text-fg-subtle transition-colors group-hover:text-fg-muted group-aria-[current=page]:text-accent-ink"
+                />
+                <span class="rail:sr-only">{item.label}</span>
+                <span class={tooltip} aria-hidden="true">
+                  {item.label}
+                </span>
+              </a>
+            </li>
+          );
+        })
+      }
+    </ul>
+  </nav>
+
+  <div class="mt-auto flex flex-col gap-3 border-t border-line p-3 rail:items-center rail:px-0">
+    <ThemeSwitcher class="rail:hidden" />
+    <button
+      type="button"
+      popovertarget={menuId}
+      aria-haspopup="menu"
+      aria-expanded="false"
+      class="group relative flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors duration-150 hover:bg-subtle rail:w-auto"
+    >
+      <Avatar user={user} size="md" />
+      <span class="min-w-0 flex-1 rail:sr-only">
+        <span class="block truncate text-[13px] font-medium text-fg">{user.name}</span>
+        <span class="block truncate text-xs text-fg-muted">{user.title}</span>
+      </span>
+      <ChevronsUpDown class="size-4 shrink-0 text-fg-subtle rail:hidden" aria-hidden="true" />
+      <span class={tooltip} aria-hidden="true">{user.name}</span>
+    </button>
+    <UserMenu id={menuId} user={user} placement="top-start" />
+  </div>
+</div>

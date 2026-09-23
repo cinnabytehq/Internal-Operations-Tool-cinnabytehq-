@@ -1,0 +1,70 @@
+---
+/**
+ * Chronological activity log grouped by day, with 24h clock times in the
+ * viewer's time zone.
+ */
+import type { ActivityWithActor } from '@/types';
+import Avatar from '@/components/ui/Avatar.astro';
+import { dayKey, dayLabel, formatDateTime, formatTime } from '@/lib/dates';
+import { ENTITY_META } from '@/lib/meta';
+import ActivityDetail from './ActivityDetail.astro';
+import ActivityText from './ActivityText.astro';
+
+interface Props {
+  events: ActivityWithActor[];
+  timeZone: string;
+}
+
+const { events, timeZone } = Astro.props;
+
+const groups: Array<{ key: string; label: string; events: ActivityWithActor[] }> = [];
+for (const event of events) {
+  const key = dayKey(event.createdAt, timeZone);
+  let group = groups.find((candidate) => candidate.key === key);
+  if (!group) {
+    group = { key, label: dayLabel(event.createdAt, timeZone), events: [] };
+    groups.push(group);
+  }
+  group.events.push(event);
+}
+---
+
+<div class="flex flex-col gap-8">
+  {
+    groups.map((group) => (
+      <section aria-labelledby={`day-${group.key}`}>
+        <h2 id={`day-${group.key}`} class="mb-3 flex items-center gap-3 text-xs font-medium text-fg-muted">
+          {group.label}
+          <span class="h-px flex-1 bg-line" aria-hidden="true" />
+          <span class="text-fg-subtle">{group.events.length}</span>
+        </h2>
+        <ol class="rounded-card border border-line bg-surface shadow-card">
+          {group.events.map((event, index) => (
+            <li class="relative flex gap-3 px-4 py-3.5 sm:gap-4 sm:px-5">
+              <time
+                datetime={event.createdAt}
+                title={formatDateTime(event.createdAt, timeZone)}
+                class="tabular w-10 shrink-0 pt-1.5 text-xs text-fg-subtle"
+              >
+                {formatTime(event.createdAt, timeZone)}
+              </time>
+              <div class="relative flex shrink-0 flex-col items-center">
+                <Avatar user={event.actor} size="md" class="relative z-10 ring-4 ring-surface" />
+                {index < group.events.length - 1 && (
+                  <span class="absolute top-8 -bottom-3.5 w-px bg-line" aria-hidden="true" />
+                )}
+              </div>
+              <div class="min-w-0 flex-1 pt-1">
+                <ActivityText event={event} />
+                <ActivityDetail event={event} />
+                <p class="mt-1.5 text-[11px] text-fg-subtle">
+                  {ENTITY_META[event.entityType].label} · <span class="font-mono">{event.entityId}</span>
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))
+  }
+</div>

@@ -1,0 +1,25 @@
+---
+/**
+ * The Cinnabyte mark: a squared spiral — a cinnamon roll drawn on a pixel
+ * grid, and a workflow that loops inward to a single point of focus.
+ */
+import { cn } from '@/lib/utils';
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+---
+
+<svg viewBox="0 0 32 32" class={cn('size-7 shrink-0', className)} aria-hidden="true">
+  <rect width="32" height="32" rx="8" fill="var(--accent)"></rect>
+  <path
+    d="M9 9.5H23V23H9V14.25H18.25V18.5"
+    fill="none"
+    stroke="white"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"></path>
+  <circle cx="18.25" cy="18.5" r="0.01" stroke="white" stroke-width="4.2" stroke-linecap="round"></circle>
+</svg>

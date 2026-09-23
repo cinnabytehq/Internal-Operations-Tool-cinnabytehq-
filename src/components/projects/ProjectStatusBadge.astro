@@ -1,0 +1,30 @@
+---
+import type { ProjectStatus } from '@/types';
+import CircleDashed from '@lucide/astro/icons/circle-dashed';
+import CircleDot from '@lucide/astro/icons/circle-dot';
+import TriangleAlert from '@lucide/astro/icons/triangle-alert';
+import CircleCheck from '@lucide/astro/icons/circle-check';
+import Badge from '@/components/ui/Badge.astro';
+import type { BadgeTone } from '@/components/ui/types';
+import { PROJECT_STATUS_META } from '@/lib/meta';
+
+interface Props {
+  status: ProjectStatus;
+  class?: string;
+}
+
+const { status, class: className } = Astro.props;
+
+const config: Record<ProjectStatus, { tone: BadgeTone; icon: typeof CircleDot }> = {
+  planning: { tone: 'neutral', icon: CircleDashed },
+  on_track: { tone: 'success', icon: CircleDot },
+  at_risk: { tone: 'warning', icon: TriangleAlert },
+  completed: { tone: 'accent', icon: CircleCheck },
+};
+const { tone, icon: Icon } = config[status];
+---
+
+<Badge tone={tone} class={className}>
+  <Icon aria-hidden="true" />
+  {PROJECT_STATUS_META[status].label}
+</Badge>

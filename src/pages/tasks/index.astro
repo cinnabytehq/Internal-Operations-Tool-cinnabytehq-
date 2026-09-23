@@ -1,0 +1,104 @@
+---
+/**
+ * Tasks — complete, re-status and search tasks across projects.
+ */
+import CircleCheckBig from '@lucide/astro/icons/circle-check-big';
+import SearchX from '@lucide/astro/icons/search-x';
+import AppLayout from '@/layouts/AppLayout.astro';
+import Button from '@/components/ui/Button.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import SearchInput from '@/components/ui/SearchInput.astro';
+import Tabs from '@/components/ui/Tabs.astro';
+import TaskRow from '@/components/tasks/TaskRow.astro';
+import { getTaskCounts, getTasks, taskSearchText } from '@/services/tasks';
+import { TASK_VIEWS, isTaskView } from '@/lib/meta';
+import { matchesQuery } from '@/lib/utils';
+import type { TaskView } from '@/types';
+
+const params = Astro.url.searchParams;
+const view: TaskView = isTaskView(params.get('view')) ? (params.get('view') as TaskView) : 'all';
+const query = params.get('q') ?? '';
+
+let data: { tasks: Awaited<ReturnType<typeof getTasks>>; counts: Awaited<ReturnType<typeof getTaskCounts>> } | null = null;
+try {
+  const [tasks, counts] = await Promise.all([getTasks({ view }), getTaskCounts()]);
+  data = { tasks, counts };
+} catch {
+  data = null;
+}
+
+const tabs = TASK_VIEWS.map((item) => ({
+  label: item.label,
+  href: item.id === 'all' ? '/tasks' : `/tasks?view=${item.id}`,
+  active: item.id === view,
+  count: data?.counts[item.id],
+  countKey: item.id === 'completed' ? 'completed' : undefined,
+}));
+const matches = data?.tasks.filter((task) => matchesQuery(taskSearchText(task), query)) ?? [];
+const matchIds = new Set(matches.map((task) => task.id));
+const header = 'text-xs font-medium text-fg-subtle';
+---
+
+<AppLayout title="Tasks">
+  <PageHeader title="Tasks" description="Everything that needs doing, across every project." />
+
+  <div data-filter-scope class="mt-6">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <Tabs items={tabs} label="Task views" />
+      <SearchInput label="Search tasks" placeholder="Search tasks…" value={query} class="md:w-72" />
+    </div>
+
+    <div class="mt-4">
+      {
+        data === null ? (
+          <div class="rounded-card border border-line bg-surface">
+            <ErrorState description="We couldn't load tasks." />
+          </div>
+        ) : data.tasks.length === 0 ? (
+          <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
+            <EmptyState
+              title={view === 'completed' ? 'No completed tasks yet' : "You're all caught up"}
+              description={view === 'completed' ? 'Tasks you finish will be kept here.' : 'There are no tasks in this view right now.'}
+            >
+              <CircleCheckBig slot="icon" aria-hidden="true" />
+            </EmptyState>
+          </div>
+        ) : (
+          <>
+            <div
+              data-filter-hide-when-empty
+              hidden={matches.length === 0}
+              class="overflow-hidden rounded-card border border-line bg-surface shadow-card"
+            >
+              <div class="hidden items-center gap-3 border-b border-line bg-subtle/60 px-4 py-2.5 sm:px-5 md:flex" aria-hidden="true">
+                <span class="w-[18px]"></span>
+                <span class:list={[header, 'flex-1']}>Task</span>
+                <span class:list={[header, 'hidden w-40 lg:block']}>Project</span>
+                <span class:list={[header, 'w-20']}>Priority</span>
+                <span class:list={[header, 'w-6']}></span>
+                <span class:list={[header, 'w-28 text-right']}>Due</span>
+                <span class:list={[header, 'w-32 pl-2']}>Status</span>
+                <span class="w-7"></span>
+              </div>
+              <ul aria-label="Tasks">
+                {data.tasks.map((task) => (
+                  <TaskRow task={task} timeZone={Astro.locals.timeZone} hidden={!matchIds.has(task.id)} />
+                ))}
+              </ul>
+            </div>
+            <div data-filter-empty hidden={matches.length > 0} class="rounded-card border border-dashed border-line-strong bg-surface/60">
+              <EmptyState title="No matching tasks" description="Try another keyword, a project name or a teammate.">
+                <SearchX slot="icon" aria-hidden="true" />
+                <Button size="sm" data-filter-clear>
+                  Clear search
+                </Button>
+              </EmptyState>
+            </div>
+          </>
+        )
+      }
+    </div>
+  </div>
+</AppLayout>

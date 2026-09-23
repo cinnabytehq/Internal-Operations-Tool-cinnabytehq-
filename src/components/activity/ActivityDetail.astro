@@ -1,0 +1,50 @@
+---
+/**
+ * Secondary line under an activity sentence: status transitions, progress
+ * changes and comment excerpts.
+ */
+import type { ActivityWithActor } from '@/types';
+import ArrowRight from '@lucide/astro/icons/arrow-right';
+import { statusLabel } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  event: ActivityWithActor;
+  /** Clamp long comments to two lines */
+  clamp?: boolean;
+  class?: string;
+}
+
+const { event, clamp = false, class: className } = Astro.props;
+const { meta } = event;
+const transition =
+  event.type === 'status_changed' && meta?.from && meta?.to
+    ? { from: statusLabel(event.entityType, meta.from), to: statusLabel(event.entityType, meta.to) }
+    : event.type === 'progress_updated' && meta?.from && meta?.to
+      ? { from: `${meta.from}%`, to: `${meta.to}%` }
+      : null;
+const chip = 'inline-flex h-5 items-center rounded border border-line bg-subtle px-1.5 text-[11px] font-medium text-fg-muted';
+---
+
+{
+  transition && (
+    <p class={cn('mt-1.5 flex flex-wrap items-center gap-1.5', className)}>
+      <span class={chip}>{transition.from}</span>
+      <ArrowRight class="size-3 text-fg-subtle" aria-label="to" />
+      <span class={cn(chip, 'text-fg')}>{transition.to}</span>
+    </p>
+  )
+}
+{
+  event.type === 'commented' && meta?.comment && (
+    <blockquote
+      class={cn(
+        'mt-1.5 rounded-md border border-line bg-subtle/70 px-3 py-2 text-[13px] leading-relaxed text-fg',
+        clamp && 'line-clamp-2',
+        className,
+      )}
+    >
+      {meta.comment}
+    </blockquote>
+  )
+}

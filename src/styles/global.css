@@ -1,0 +1,429 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
+
+/*
+ * ─────────────────────────────────────────────────────────────
+ *  CinnabyteHQ design system
+ *
+ *  Every color in the app comes from the tokens below. Components never
+ *  hardcode hex values — they use the Tailwind utilities generated from
+ *  these tokens (bg-surface, text-fg-muted, border-line, …), so light and
+ *  dark mode stay in sync automatically.
+ *
+ *  Layers (back → front):
+ *    canvas    page background
+ *    surface   cards, tables, panels
+ *    elevated  menus, dialogs, toasts
+ *    subtle    hover fills, sunken wells, table headers
+ * ─────────────────────────────────────────────────────────────
+ */
+
+/* Theme is driven by <html data-theme="light|dark"> (set before paint). */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * `rail:` — the sidebar is a narrow icon rail. That happens on tablets
+ * (768–1279px) and on desktop when the user collapses the sidebar.
+ */
+@custom-variant rail {
+  @media (width >= 48rem) and (width < 80rem) {
+    &:where([data-sidebar-surface='desktop'], [data-sidebar-surface='desktop'] *) {
+      @slot;
+    }
+  }
+  @media (width >= 80rem) {
+    &:where([data-sidebar='collapsed'] [data-sidebar-surface='desktop'], [data-sidebar='collapsed'] [data-sidebar-surface='desktop'] *) {
+      @slot;
+    }
+  }
+}
+
+/* Tokens are scoped by [data-theme] so any element (e.g. the theme
+   previews in Settings) can render in a specific theme. */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: #f7f7f4;
+  --surface: #ffffff;
+  --elevated: #ffffff;
+  --subtle: #f2f2ee;
+  --muted: #e9e9e4;
+
+  --line: #e6e5df;
+  --line-strong: #d6d5ce;
+
+  --fg: #1b1c1e;
+  --fg-muted: #5f6166;
+  --fg-subtle: #737579;
+  --fg-inverse: #ffffff;
+
+  /* Cinnabyte emerald */
+  --accent: #146c50;
+  --accent-hover: #0f5c44;
+  --accent-fg: #ffffff;
+  --accent-ink: #0f6649;
+  --accent-soft: #e6f2ec;
+  --accent-line: #b9dccb;
+
+  /* Semantic states — always paired with an icon + label */
+  --success-ink: #157a4f;
+  --success-soft: #e5f3eb;
+  --warning-ink: #9a6200;
+  --warning-soft: #fbf1dc;
+  --danger: #c43d32;
+  --danger-ink: #c0392f;
+  --danger-soft: #fbe9e6;
+  --info-ink: #2563b8;
+  --info-soft: #e8f0fb;
+
+  /* Request pipeline — one-hue ordinal ramp (validated: ≥2:1 light end) */
+  --status-new: #7cc4a5;
+  --status-review: #44a47f;
+  --status-progress: #1e8060;
+  --status-done: #0e5a43;
+
+  --ring: color-mix(in oklab, var(--accent) 45%, transparent);
+
+  --shadow-xs: 0 1px 2px rgb(24 24 20 / 0.04);
+  --shadow-card: 0 1px 2px rgb(24 24 20 / 0.04), 0 1px 1px rgb(24 24 20 / 0.02);
+  --shadow-pop: 0 1px 2px rgb(24 24 20 / 0.06), 0 8px 24px -4px rgb(24 24 20 / 0.12);
+  --shadow-dialog: 0 2px 4px rgb(24 24 20 / 0.06), 0 24px 48px -12px rgb(24 24 20 / 0.22);
+
+  --backdrop: rgb(20 20 18 / 0.32);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #111214;
+  --surface: #18191b;
+  --elevated: #1f2023;
+  --subtle: #1d1e21;
+  --muted: #26282b;
+
+  --line: #26282c;
+  --line-strong: #33363a;
+
+  --fg: #ececee;
+  --fg-muted: #a1a3a8;
+  --fg-subtle: #85888e;
+  --fg-inverse: #111214;
+
+  --accent: #1a7a5a;
+  --accent-hover: #1f8a66;
+  --accent-fg: #ffffff;
+  --accent-ink: #5cc79c;
+  --accent-soft: #15291f;
+  --accent-line: #22523d;
+
+  --success-ink: #5cc79c;
+  --success-soft: #15291f;
+  --warning-ink: #e8b04b;
+  --warning-soft: #2b2314;
+  --danger: #c9443a;
+  --danger-ink: #f07a6e;
+  --danger-soft: #2f1a18;
+  --info-ink: #7aaef0;
+  --info-soft: #172335;
+
+  /* Ordinal ramp flips its anchor in dark: later stages are brighter */
+  --status-new: #1f6d53;
+  --status-review: #2f906d;
+  --status-progress: #4db68d;
+  --status-done: #8cdab7;
+
+  --ring: color-mix(in oklab, var(--accent-ink) 50%, transparent);
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -6px rgb(0 0 0 / 0.55);
+  --shadow-dialog: 0 2px 4px rgb(0 0 0 / 0.3), 0 28px 56px -12px rgb(0 0 0 / 0.7);
+
+  --backdrop: rgb(0 0 0 / 0.55);
+}
+
+@theme {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --radius-card: 0.625rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-in: fade-in 180ms var(--ease-out-soft);
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+/* Map CSS variables to Tailwind color utilities (bg-surface, text-fg, …) */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-subtle: var(--subtle);
+  --color-muted: var(--muted);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-inverse: var(--fg-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+
+  --color-success-ink: var(--success-ink);
+  --color-success-soft: var(--success-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-info-ink: var(--info-ink);
+  --color-info-soft: var(--info-soft);
+
+  --color-status-new: var(--status-new);
+  --color-status-review: var(--status-review);
+  --color-status-progress: var(--status-progress);
+  --color-status-done: var(--status-done);
+
+  --color-ring: var(--ring);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+  --shadow-dialog: var(--shadow-dialog);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-sm text-fg;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+
+  /* Keep numbers aligned in columns only (tables, timelines) */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Native popovers are positioned by src/scripts/popovers.ts */
+  [popover] {
+    inset: auto;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    overflow: visible;
+  }
+
+  /* Dialogs: calm fade + lift. Uses @starting-style where supported. */
+  dialog {
+    color: inherit;
+    max-width: none;
+    max-height: none;
+  }
+  dialog::backdrop {
+    background: var(--backdrop);
+    opacity: 0;
+    transition:
+      opacity 180ms var(--ease-out-soft),
+      overlay 180ms allow-discrete,
+      display 180ms allow-discrete;
+  }
+  dialog[open]::backdrop {
+    opacity: 1;
+  }
+  @starting-style {
+    dialog[open]::backdrop {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Popover menus and panels */
+  .pop-panel {
+    @apply rounded-lg border border-line bg-elevated shadow-pop;
+    opacity: 0;
+    transform: translateY(-2px) scale(0.98);
+    transition:
+      opacity 140ms var(--ease-out-soft),
+      transform 140ms var(--ease-out-soft),
+      overlay 140ms allow-discrete,
+      display 140ms allow-discrete;
+  }
+  :popover-open > .pop-panel,
+  .pop-panel:popover-open {
+    opacity: 1;
+    transform: none;
+  }
+  @starting-style {
+    :popover-open > .pop-panel,
+    .pop-panel:popover-open {
+      opacity: 0;
+      transform: translateY(-2px) scale(0.98);
+    }
+  }
+
+  .dialog-panel {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    transition:
+      opacity 200ms var(--ease-out-soft),
+      transform 200ms var(--ease-out-soft),
+      overlay 200ms allow-discrete,
+      display 200ms allow-discrete;
+  }
+  .dialog-panel[open] {
+    opacity: 1;
+    transform: none;
+  }
+  @starting-style {
+    .dialog-panel[open] {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+  }
+
+  /* Mobile navigation drawer slides from the left */
+  .drawer-panel {
+    transform: translateX(-100%);
+    transition:
+      transform 220ms var(--ease-out-soft),
+      overlay 220ms allow-discrete,
+      display 220ms allow-discrete;
+  }
+  .drawer-panel[open] {
+    transform: none;
+  }
+  @starting-style {
+    .drawer-panel[open] {
+      transform: translateX(-100%);
+    }
+  }
+
+  /* Skeleton shimmer blocks */
+  .skeleton {
+    @apply animate-shimmer rounded-md bg-muted;
+  }
+
+  /* Hide scrollbars on horizontal tab strips while keeping them scrollable */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * Initials avatars: one muted hue per person, mixed into the current
+ * surface/text colors so they adapt to both themes automatically.
+ */
+.avatar {
+  background: color-mix(in oklab, var(--avatar-hue) 17%, var(--surface));
+  color: color-mix(in oklab, var(--avatar-hue) 72%, var(--fg));
+}
+.avatar[data-color='emerald'] { --avatar-hue: #16a37a; }
+.avatar[data-color='sky'] { --avatar-hue: #2f8fd6; }
+.avatar[data-color='amber'] { --avatar-hue: #d4921a; }
+.avatar[data-color='rose'] { --avatar-hue: #dc5277; }
+.avatar[data-color='violet'] { --avatar-hue: #7c63d8; }
+.avatar[data-color='slate'] { --avatar-hue: #64748b; }
+
+/* Rows linked from elsewhere (e.g. /tasks#TSK-207) get a brief highlight */
+:target {
+  scroll-margin-top: 6rem;
+}
+[data-highlight]:target {
+  animation: target-flash 1.8s var(--ease-out-soft);
+}
+@keyframes target-flash {
+  0%,
+  40% {
+    background: var(--accent-soft);
+  }
+}
+
+/* Button loading state: toggled by setLoading() in src/scripts/ui.ts */
+[data-loading='true'] {
+  pointer-events: none;
+}
+[data-loading='true'] [data-button-label] {
+  opacity: 0;
+}
+[data-loading='true'] [data-button-spinner] {
+  display: flex;
+}
+
+/* Lock page scroll while a modal dialog is open */
+html:has(dialog[open]:modal) {
+  overflow: hidden;
+}

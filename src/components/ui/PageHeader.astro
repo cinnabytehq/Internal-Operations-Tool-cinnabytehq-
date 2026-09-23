@@ -1,0 +1,25 @@
+---
+/**
+ * Title block at the top of every page. Slot "actions" for buttons.
+ */
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+  <div class="min-w-0">
+    <h1 class="text-xl font-semibold tracking-tight text-fg sm:text-2xl">{title}</h1>
+    {description && <p class="mt-1 text-sm text-fg-muted">{description}</p>}
+  </div>
+  {
+    Astro.slots.has('actions') && (
+      <div class="flex shrink-0 items-center gap-2">
+        <slot name="actions" />
+      </div>
+    )
+  }
+</div>

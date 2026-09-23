@@ -1,0 +1,67 @@
+---
+/**
+ * One row in a <Menu>. Renders a link when `href` is set, a button otherwise.
+ * Slots: "icon", default (label), "hint" (right side).
+ */
+import type { HTMLAttributes } from 'astro/types';
+import Check from '@lucide/astro/icons/check';
+import { cn } from '@/lib/utils';
+
+interface Props extends Omit<HTMLAttributes<'button'>, 'class'> {
+  href?: string;
+  /** For single-choice menus (status, theme): renders a check and aria-checked */
+  checked?: boolean;
+  danger?: boolean;
+  class?: string;
+}
+
+const { href, checked, danger = false, class: className, disabled, ...rest } = Astro.props;
+const isRadio = checked !== undefined;
+
+const classes = cn(
+  'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] outline-none',
+  'transition-colors duration-100 pointer-coarse:py-2.5',
+  'hover:bg-subtle focus-visible:bg-subtle focus-visible:outline-none',
+  'disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent',
+  '[&_svg]:size-4 [&_svg]:shrink-0',
+  danger ? 'text-danger-ink hover:bg-danger-soft focus-visible:bg-danger-soft' : 'text-fg',
+  className,
+);
+const iconClass = cn('flex shrink-0 items-center', danger ? 'text-danger-ink' : 'text-fg-muted');
+---
+
+{
+  href ? (
+    <a href={href} role="menuitem" class={classes} {...(rest as HTMLAttributes<'a'>)}>
+      {Astro.slots.has('icon') && (
+        <span class={iconClass}>
+          <slot name="icon" />
+        </span>
+      )}
+      <span class="min-w-0 flex-1 truncate">
+        <slot />
+      </span>
+      <slot name="hint" />
+    </a>
+  ) : (
+    <button
+      type="button"
+      role={isRadio ? 'menuitemradio' : 'menuitem'}
+      aria-checked={isRadio ? (checked ? 'true' : 'false') : undefined}
+      disabled={disabled}
+      class={classes}
+      {...rest}
+    >
+      {Astro.slots.has('icon') && (
+        <span class={iconClass}>
+          <slot name="icon" />
+        </span>
+      )}
+      <span class="min-w-0 flex-1 truncate">
+        <slot />
+      </span>
+      <slot name="hint" />
+      {isRadio && <Check data-check class={cn('text-accent-ink', !checked && 'invisible')} aria-hidden="true" />}
+    </button>
+  )
+}

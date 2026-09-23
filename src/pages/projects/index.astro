@@ -1,0 +1,70 @@
+---
+/**
+ * Projects — compact cards with progress, status and ownership.
+ */
+import FolderKanban from '@lucide/astro/icons/folder-kanban';
+import AppLayout from '@/layouts/AppLayout.astro';
+import EmptyState from '@/components/ui/EmptyState.astro';
+import ErrorState from '@/components/ui/ErrorState.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import Tabs from '@/components/ui/Tabs.astro';
+import ProjectCard from '@/components/projects/ProjectCard.astro';
+import { getProjects } from '@/services/projects';
+import type { ProjectWithRelations } from '@/types';
+
+const filter = Astro.url.searchParams.get('filter') === 'completed' ? 'completed' : Astro.url.searchParams.get('filter') === 'active' ? 'active' : 'all';
+
+let projects: ProjectWithRelations[] | null = null;
+try {
+  projects = await getProjects();
+} catch {
+  projects = null;
+}
+
+const active = projects?.filter((project) => project.status !== 'completed') ?? [];
+const completed = projects?.filter((project) => project.status === 'completed') ?? [];
+const visible = filter === 'active' ? active : filter === 'completed' ? completed : (projects ?? []);
+const atRisk = active.filter((project) => project.status === 'at_risk').length;
+
+const tabs = [
+  { label: 'All', href: '/projects', active: filter === 'all', count: projects?.length },
+  { label: 'Active', href: '/projects?filter=active', active: filter === 'active', count: active.length },
+  { label: 'Completed', href: '/projects?filter=completed', active: filter === 'completed', count: completed.length },
+];
+---
+
+<AppLayout title="Projects">
+  <PageHeader
+    title="Projects"
+    description={projects
+      ? `${active.length} active${atRisk ? ` · ${atRisk} at risk` : ''} · progress is reported by each project owner.`
+      : 'Everything your team is building, at a glance.'}
+  />
+
+  <Tabs items={tabs} label="Project filters" class="mt-6" />
+
+  <div class="mt-4">
+    {
+      projects === null ? (
+        <div class="rounded-card border border-line bg-surface">
+          <ErrorState description="We couldn't load projects." />
+        </div>
+      ) : visible.length === 0 ? (
+        <div class="rounded-card border border-dashed border-line-strong bg-surface/60">
+          <EmptyState
+            title={filter === 'completed' ? 'No completed projects yet' : 'No projects yet'}
+            description="Projects group related tasks so everyone can see progress in one place."
+          >
+            <FolderKanban slot="icon" aria-hidden="true" />
+          </EmptyState>
+        </div>
+      ) : (
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((project) => (
+            <ProjectCard project={project} timeZone={Astro.locals.timeZone} />
+          ))}
+        </div>
+      )
+    }
+  </div>
+</AppLayout>

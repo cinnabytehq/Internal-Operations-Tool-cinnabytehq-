@@ -1,0 +1,196 @@
+---
+/**
+ * Settings — profile (saved through the service layer), appearance
+ * (localStorage), notifications and workspace (frontend-only for now).
+ */
+import AppLayout from '@/layouts/AppLayout.astro';
+import Avatar from '@/components/ui/Avatar.astro';
+import Button from '@/components/ui/Button.astro';
+import Field from '@/components/ui/Field.astro';
+import Input from '@/components/ui/Input.astro';
+import PageHeader from '@/components/ui/PageHeader.astro';
+import Switch from '@/components/ui/Switch.astro';
+import SettingsSection from '@/components/settings/SettingsSection.astro';
+import ThemePreview from '@/components/settings/ThemePreview.astro';
+import { getUsers } from '@/services/users';
+import { ROLE_META } from '@/lib/meta';
+
+const { user } = Astro.locals;
+const members = await getUsers();
+
+const sections = [
+  { id: 'profile', label: 'Profile' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'workspace', label: 'Workspace' },
+];
+
+const themes = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
+] as const;
+
+const notificationSettings = [
+  { id: 'email', label: 'Email notifications', description: 'Get a daily email digest of activity that involves you.' },
+  { id: 'requestUpdates', label: 'Request updates', description: 'When a request you submitted or are assigned to changes status or gets a comment.' },
+  { id: 'approvals', label: 'Approval notifications', description: 'When a request needs your approval, or your request is approved.' },
+];
+---
+
+<AppLayout title="Settings">
+  <PageHeader title="Settings" description="Manage your profile, appearance and workspace preferences." />
+
+  <div class="mt-6 grid gap-8 lg:mt-8 lg:grid-cols-[180px_minmax(0,1fr)] lg:gap-12">
+    <nav aria-label="Settings sections" class="lg:sticky lg:top-24 lg:self-start">
+      <ul class="no-scrollbar -mx-1 flex gap-1 overflow-x-auto px-1 lg:flex-col">
+        {
+          sections.map((section) => (
+            <li>
+              <a
+                href={`#${section.id}`}
+                data-settings-link={section.id}
+                class="flex h-8 items-center rounded-md px-2.5 text-[13px] font-medium whitespace-nowrap text-fg-muted transition-colors hover:bg-subtle hover:text-fg aria-[current=true]:bg-surface aria-[current=true]:text-fg aria-[current=true]:shadow-xs aria-[current=true]:ring-1 aria-[current=true]:ring-line pointer-coarse:h-10"
+              >
+                {section.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="min-w-0 max-w-2xl">
+      <!-- Profile -->
+      <SettingsSection id="profile" title="Profile" description="How you appear to teammates across CinnabyteHQ.">
+        <form id="profile-form" novalidate>
+          <div class="flex items-center gap-4 border-b border-line p-5">
+            <Avatar user={user} size="xl" />
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-fg">{user.name}</p>
+              <p class="truncate text-[13px] text-fg-muted">{user.title} · {user.team}</p>
+              <p class="mt-1 text-xs text-fg-subtle">Your avatar uses your initials.</p>
+            </div>
+          </div>
+          <div class="grid gap-5 p-5 sm:grid-cols-2">
+            <Field label="Full name" for="profile-name">
+              <Input id="profile-name" name="name" value={user.name} autocomplete="name" required aria-describedby="profile-name-error" />
+            </Field>
+            <Field label="Email" for="profile-email">
+              <Input id="profile-email" name="email" type="email" value={user.email} autocomplete="email" required aria-describedby="profile-email-error" />
+            </Field>
+            <Field label="Job title" for="profile-title">
+              <Input id="profile-title" name="title" value={user.title} autocomplete="organization-title" required aria-describedby="profile-title-error" />
+            </Field>
+            <Field label="Role" for="profile-role" hint="Roles are managed by workspace admins.">
+              <Input id="profile-role" value={`${ROLE_META[user.role].label} · ${user.team}`} disabled />
+            </Field>
+          </div>
+          <div class="flex justify-end border-t border-line bg-subtle/50 px-5 py-3">
+            <Button type="submit" variant="primary" size="sm">Save profile</Button>
+          </div>
+        </form>
+      </SettingsSection>
+
+      <!-- Appearance -->
+      <SettingsSection id="appearance" title="Appearance" description="Choose how CinnabyteHQ looks. Saved on this device.">
+        <fieldset class="p-5">
+          <legend class="sr-only">Theme</legend>
+          <div class="grid grid-cols-3 gap-3">
+            {
+              themes.map((theme) => (
+                <label class="group cursor-pointer">
+                  <input
+                    type="radio"
+                    name="theme-preference"
+                    value={theme.value}
+                    data-theme-option={theme.value}
+                    data-label={theme.label}
+                    class="peer sr-only"
+                  />
+                  <span class="block overflow-hidden rounded-lg border border-line ring-offset-2 ring-offset-surface transition-[border-color,box-shadow] duration-150 group-hover:border-line-strong peer-checked:border-accent peer-checked:ring-2 peer-checked:ring-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring">
+                    <span class="flex aspect-[16/10] w-full">
+                      {theme.value === 'system' ? (
+                        <>
+                          <span class="w-1/2 overflow-hidden">
+                            <span class="block h-full w-[200%]">
+                              <ThemePreview theme="light" />
+                            </span>
+                          </span>
+                          <span class="relative w-1/2 overflow-hidden">
+                            <span class="absolute inset-y-0 right-0 block w-[200%]">
+                              <ThemePreview theme="dark" />
+                            </span>
+                          </span>
+                        </>
+                      ) : (
+                        <ThemePreview theme={theme.value} />
+                      )}
+                    </span>
+                  </span>
+                  <span class="mt-2 flex items-center justify-center gap-1.5 text-[13px] font-medium text-fg-muted peer-checked:text-fg">
+                    {theme.label}
+                  </span>
+                </label>
+              ))
+            }
+          </div>
+          <p class="mt-4 text-xs text-fg-subtle">System follows your operating system's light or dark setting.</p>
+        </fieldset>
+      </SettingsSection>
+
+      <!-- Notifications -->
+      <SettingsSection id="notifications" title="Notifications" description="Decide what's worth interrupting you for.">
+        <div class="divide-y divide-line px-5" data-notification-settings>
+          {notificationSettings.map((setting) => <Switch id={`notify-${setting.id}`} name={setting.id} label={setting.label} description={setting.description} checked />)}
+        </div>
+        <p class="border-t border-line px-5 py-3 text-xs text-fg-subtle">
+          Preferences are saved in this browser until notification delivery ships.
+        </p>
+      </SettingsSection>
+
+      <!-- Workspace -->
+      <SettingsSection id="workspace" title="Workspace" description="Settings that apply to everyone in this workspace.">
+        <form id="workspace-form" class="grid gap-5 p-5 sm:grid-cols-2" novalidate>
+          <Field label="Workspace name" for="workspace-name" hint="Shown in the breadcrumb at the top of every page.">
+            <Input id="workspace-name" name="workspaceName" value="Cinnabyte" maxlength="40" required aria-describedby="workspace-name-hint workspace-name-error" />
+          </Field>
+          <Field label="Workspace URL" for="workspace-url">
+            <Input id="workspace-url" value="cinnabyte.io/hq" disabled />
+          </Field>
+          <div class="flex justify-end sm:col-span-2">
+            <Button type="submit" size="sm">Save workspace</Button>
+          </div>
+        </form>
+        <div class="border-t border-line">
+          <div class="flex items-center justify-between px-5 pt-4 pb-2">
+            <h3 class="text-[13px] font-semibold text-fg">Members</h3>
+            <span class="text-xs text-fg-subtle">{members.length} people</span>
+          </div>
+          <ul class="divide-y divide-line px-5 pb-2">
+            {
+              members.map((member) => (
+                <li class="flex items-center gap-3 py-3">
+                  <Avatar user={member} size="md" />
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-[13px] font-medium text-fg">
+                      {member.name}
+                      {member.id === user.id && <span class="ml-1 text-xs font-normal text-fg-subtle">(you)</span>}
+                    </p>
+                    <p class="truncate text-xs text-fg-muted">{member.email}</p>
+                  </div>
+                  <span class="hidden text-xs text-fg-muted sm:block">{member.team}</span>
+                  <span class="w-16 text-right text-xs font-medium text-fg">{ROLE_META[member.role].label}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </SettingsSection>
+    </div>
+  </div>
+</AppLayout>
+
+<script>
+  import '@/scripts/settings';
+</script>

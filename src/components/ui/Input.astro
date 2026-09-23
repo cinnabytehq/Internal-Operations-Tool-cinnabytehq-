@@ -1,0 +1,22 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+import { cn } from '@/lib/utils';
+
+interface Props extends Omit<HTMLAttributes<'input'>, 'class'> {
+  class?: string;
+}
+
+const { class: className, ...rest } = Astro.props;
+---
+
+<input
+  class={cn(
+    'h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-fg shadow-xs pointer-coarse:h-11',
+    'placeholder:text-fg-subtle transition-[border-color,box-shadow] duration-150',
+    'hover:border-line-strong focus:border-accent focus:ring-3 focus:ring-ring focus:outline-none',
+    'aria-invalid:border-danger-ink aria-invalid:focus:ring-danger-soft',
+    'disabled:cursor-not-allowed disabled:bg-subtle disabled:text-fg-muted',
+    className,
+  )}
+  {...rest}
+/>

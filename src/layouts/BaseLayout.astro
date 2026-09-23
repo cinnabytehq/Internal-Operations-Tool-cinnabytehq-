@@ -1,0 +1,60 @@
+---
+/**
+ * Document shell: <head>, fonts, global styles and the pre-paint script
+ * that applies the saved theme before anything renders (no flash of the
+ * wrong theme).
+ */
+import '@/styles/global.css';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title, description = 'CinnabyteHQ — one place for internal requests, projects, tasks and approvals.' } =
+  Astro.props;
+const pageTitle = title ? `${title} · CinnabyteHQ` : 'CinnabyteHQ';
+---
+
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content={description} />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f7f7f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{pageTitle}</title>
+
+    <!-- Runs before first paint: theme, sidebar state and time zone -->
+    <script is:inline>
+      (() => {
+        const root = document.documentElement;
+        let preference = 'system';
+        try {
+          preference = localStorage.getItem('cinnabyte:theme') || 'system';
+          if (localStorage.getItem('cinnabyte:sidebar') === 'collapsed') root.dataset.sidebar = 'collapsed';
+        } catch {}
+        const dark =
+          preference === 'dark' ||
+          (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        root.dataset.theme = dark ? 'dark' : 'light';
+        root.dataset.themePreference = preference;
+
+        // Let the server format dates in the viewer's time zone.
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          const cookie = 'tz=' + encodeURIComponent(tz);
+          if (tz && !document.cookie.split('; ').includes(cookie)) {
+            document.cookie = cookie + '; path=/; max-age=31536000; samesite=lax';
+          }
+        } catch {}
+      })();
+    </script>
+  </head>
+  <body class="min-h-dvh">
+    <slot />
+  </body>
+</html>

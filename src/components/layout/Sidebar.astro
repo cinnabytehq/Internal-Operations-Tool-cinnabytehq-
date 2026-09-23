@@ -1,0 +1,30 @@
+---
+/**
+ * Desktop sidebar (≥768px) and the mobile navigation drawer (<768px).
+ */
+import type { User } from '@/types';
+import SidebarContent from './SidebarContent.astro';
+
+interface Props {
+  user: User;
+  pathname: string;
+}
+
+const { user, pathname } = Astro.props;
+---
+
+<aside
+  data-sidebar-surface="desktop"
+  class="sticky top-0 z-40 hidden h-dvh w-60 shrink-0 border-r border-line bg-canvas transition-[width] duration-200 ease-out md:block rail:w-16"
+  aria-label="Sidebar"
+>
+  <SidebarContent user={user} pathname={pathname} surface="desktop" />
+</aside>
+
+<dialog
+  id="mobile-nav"
+  aria-label="Navigation"
+  class="drawer-panel m-0 h-dvh max-h-dvh w-72 max-w-[85vw] border-r border-line bg-canvas p-0 text-fg md:hidden"
+>
+  <SidebarContent user={user} pathname={pathname} surface="mobile" />
+</dialog>

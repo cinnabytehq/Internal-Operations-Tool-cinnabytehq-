@@ -1,0 +1,36 @@
+---
+/**
+ * Meter-style progress bar. The track is a lighter step of the fill's hue.
+ */
+import { cn } from '@/lib/utils';
+
+type Tone = 'accent' | 'warning' | 'neutral';
+
+interface Props {
+  value: number;
+  label: string;
+  tone?: Tone;
+  size?: 'sm' | 'md';
+  class?: string;
+}
+
+const { value, label, tone = 'accent', size = 'sm', class: className } = Astro.props;
+const clamped = Math.min(100, Math.max(0, Math.round(value)));
+
+const tones: Record<Tone, { track: string; fill: string }> = {
+  accent: { track: 'bg-accent-soft', fill: 'bg-accent' },
+  warning: { track: 'bg-warning-soft', fill: 'bg-warning-ink' },
+  neutral: { track: 'bg-muted', fill: 'bg-fg-subtle' },
+};
+---
+
+<div
+  role="progressbar"
+  aria-label={label}
+  aria-valuenow={clamped}
+  aria-valuemin="0"
+  aria-valuemax="100"
+  class={cn('w-full overflow-hidden rounded-full', size === 'sm' ? 'h-1.5' : 'h-2', tones[tone].track, className)}
+>
+  <div class={cn('h-full rounded-full', tones[tone].fill)} style={`width: ${clamped}%`}></div>
+</div>

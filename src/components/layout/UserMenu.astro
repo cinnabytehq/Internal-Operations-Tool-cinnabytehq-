@@ -1,0 +1,42 @@
+---
+/**
+ * Profile menu. Rendered twice (sidebar + top bar), so ids take a prefix.
+ */
+import type { User } from '@/types';
+import UserRound from '@lucide/astro/icons/user-round';
+import Settings from '@lucide/astro/icons/settings';
+import Keyboard from '@lucide/astro/icons/keyboard';
+import LogOut from '@lucide/astro/icons/log-out';
+import Menu from '@/components/ui/Menu.astro';
+import type { Placement } from '@/components/ui/types';
+import MenuItem from '@/components/ui/MenuItem.astro';
+import MenuSeparator from '@/components/ui/MenuSeparator.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+
+interface Props {
+  id: string;
+  user: User;
+  placement?: Placement;
+}
+
+const { id, user, placement = 'bottom-end' } = Astro.props;
+---
+
+<Menu id={id} label="Account" placement={placement} class="w-60">
+  <div class="px-2 pt-1.5 pb-2">
+    <p class="truncate text-[13px] font-medium text-fg">{user.name}</p>
+    <p class="truncate text-xs text-fg-muted">{user.email}</p>
+  </div>
+  <MenuSeparator />
+  <MenuItem href="/settings#profile"><UserRound slot="icon" aria-hidden="true" />Profile</MenuItem>
+  <MenuItem href="/settings"><Settings slot="icon" aria-hidden="true" />Settings</MenuItem>
+  <MenuItem data-dialog-open="shortcuts-dialog">
+    <Keyboard slot="icon" aria-hidden="true" />Keyboard shortcuts
+    <Kbd slot="hint">?</Kbd>
+  </MenuItem>
+  <MenuSeparator />
+  <MenuItem disabled title="Authentication arrives in Phase 2">
+    <LogOut slot="icon" aria-hidden="true" />Sign out
+    <span slot="hint" class="text-[11px] text-fg-subtle">Soon</span>
+  </MenuItem>
+</Menu>

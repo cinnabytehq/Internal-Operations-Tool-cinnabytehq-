@@ -1,0 +1,39 @@
+---
+import type { User } from '@/types';
+import { cn, initials } from '@/lib/utils';
+
+type Size = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+interface Props {
+  user: Pick<User, 'name' | 'avatarColor'>;
+  size?: Size;
+  class?: string;
+  /** Announce the name to screen readers (off when the name is shown next to it) */
+  labelled?: boolean;
+}
+
+const { user, size = 'sm', class: className, labelled = false } = Astro.props;
+
+const sizes: Record<Size, string> = {
+  xs: 'size-5 text-[9px]',
+  sm: 'size-6 text-[10px]',
+  md: 'size-8 text-xs',
+  lg: 'size-10 text-sm',
+  xl: 'size-14 text-lg',
+};
+---
+
+<span
+  class={cn(
+    'avatar inline-flex shrink-0 items-center justify-center rounded-full font-semibold tracking-wide select-none',
+    sizes[size],
+    className,
+  )}
+  data-color={user.avatarColor}
+  role={labelled ? 'img' : undefined}
+  aria-label={labelled ? user.name : undefined}
+  aria-hidden={labelled ? undefined : 'true'}
+  title={labelled ? user.name : undefined}
+>
+  {initials(user.name)}
+</span>

@@ -1,0 +1,38 @@
+---
+/**
+ * Segmented Light / Dark / System control. All theme controls on the page
+ * stay in sync through src/scripts/theme.ts.
+ */
+import Sun from '@lucide/astro/icons/sun';
+import Moon from '@lucide/astro/icons/moon';
+import Monitor from '@lucide/astro/icons/monitor';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  class?: string;
+}
+
+const { class: className } = Astro.props;
+const options = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+  { value: 'system', label: 'System', icon: Monitor },
+];
+---
+
+<div role="group" aria-label="Theme" class={cn('flex items-center gap-0.5 rounded-lg bg-muted/70 p-0.5', className)}>
+  {
+    options.map(({ value, label, icon: Icon }) => (
+      <button
+        type="button"
+        data-theme-option={value}
+        aria-pressed="false"
+        aria-label={`${label} theme`}
+        title={label}
+        class="inline-flex h-7 flex-1 items-center justify-center rounded-md text-fg-subtle transition-colors duration-150 hover:text-fg aria-pressed:bg-surface aria-pressed:text-fg aria-pressed:shadow-xs pointer-coarse:h-9"
+      >
+        <Icon class="size-3.5" aria-hidden="true" />
+      </button>
+    ))
+  }
+</div>

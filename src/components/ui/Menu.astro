@@ -1,0 +1,33 @@
+---
+/**
+ * Dropdown menu built on the native Popover API (top layer, light dismiss,
+ * Escape to close). Open it with any button that has
+ * `popovertarget={id}`. Positioning and arrow-key navigation live in
+ * src/scripts/popovers.ts.
+ */
+import { cn } from '@/lib/utils';
+import type { Placement } from './types';
+
+interface Props {
+  id: string;
+  label: string;
+  placement?: Placement;
+  /** "menu" for action lists, "dialog" for richer panels (notifications) */
+  role?: 'menu' | 'dialog';
+  class?: string;
+}
+
+const { id, label, placement = 'bottom-end', role = 'menu', class: className } = Astro.props;
+---
+
+<div
+  id={id}
+  popover="auto"
+  data-menu
+  data-placement={placement}
+  role={role}
+  aria-label={label}
+  class={cn('pop-panel min-w-48 p-1', className)}
+>
+  <slot />
+</div>

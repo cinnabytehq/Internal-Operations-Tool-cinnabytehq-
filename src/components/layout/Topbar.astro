@@ -1,0 +1,107 @@
+---
+/**
+ * Sticky top bar: navigation toggles, breadcrumb, search, notifications,
+ * theme and profile.
+ */
+import type { ActivityWithActor, User } from '@/types';
+import Menu from '@lucide/astro/icons/menu';
+import PanelLeft from '@lucide/astro/icons/panel-left';
+import Search from '@lucide/astro/icons/search';
+import ChevronRight from '@lucide/astro/icons/chevron-right';
+import Avatar from '@/components/ui/Avatar.astro';
+import Button from '@/components/ui/Button.astro';
+import Kbd from '@/components/ui/Kbd.astro';
+import NotificationsMenu from './NotificationsMenu.astro';
+import ThemeMenu from './ThemeMenu.astro';
+import UserMenu from './UserMenu.astro';
+import type { Crumb } from './navigation';
+
+interface Props {
+  user: User;
+  breadcrumbs: Crumb[];
+  notifications: ActivityWithActor[];
+}
+
+const { user, breadcrumbs, notifications } = Astro.props;
+---
+
+<header class="sticky top-0 z-30 border-b border-line bg-canvas">
+  <div class="flex h-14 items-center gap-2 px-3 sm:px-4 lg:px-6">
+    <Button variant="ghost" size="icon-sm" class="md:hidden" data-dialog-open="mobile-nav" aria-label="Open navigation">
+      <Menu class="size-[18px]" aria-hidden="true" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      class="max-xl:hidden"
+      data-sidebar-toggle
+      aria-label="Collapse sidebar"
+      aria-pressed="false"
+      title="Toggle sidebar ( [ )"
+    >
+      <PanelLeft class="size-4" aria-hidden="true" />
+    </Button>
+
+    <nav aria-label="Breadcrumb" class="min-w-0 flex-1">
+      <ol class="flex min-w-0 items-center gap-1.5 text-[13px]">
+        <li class="hidden items-center gap-1.5 sm:flex">
+          <a href="/dashboard" class="text-fg-muted transition-colors hover:text-fg" data-workspace-name>Cinnabyte</a>
+          <ChevronRight class="size-3.5 text-fg-subtle" aria-hidden="true" />
+        </li>
+        {
+          breadcrumbs.map((crumb, index) => {
+            const isLast = index === breadcrumbs.length - 1;
+            return (
+              <li class:list={['min-w-0 items-center gap-1.5', isLast ? 'flex' : 'hidden sm:flex']}>
+                {isLast ? (
+                  <span aria-current="page" class="truncate font-medium text-fg">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <>
+                    <a href={crumb.href} class="truncate text-fg-muted transition-colors hover:text-fg">
+                      {crumb.label}
+                    </a>
+                    <ChevronRight class="size-3.5 shrink-0 text-fg-subtle" aria-hidden="true" />
+                  </>
+                )}
+              </li>
+            );
+          })
+        }
+      </ol>
+    </nav>
+
+    <div class="flex items-center gap-1">
+      <button
+        type="button"
+        data-palette-open
+        class="hidden h-8 w-56 items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg-subtle shadow-xs transition-colors duration-150 hover:border-line-strong hover:text-fg-muted md:flex lg:w-64"
+        aria-label="Search workspace"
+        aria-keyshortcuts="Control+K Meta+K"
+      >
+        <Search class="size-3.5" aria-hidden="true" />
+        <span class="flex-1 text-left">Search…</span>
+        <span class="flex items-center gap-0.5" aria-hidden="true">
+          <Kbd data-mod-key>Ctrl</Kbd><Kbd>K</Kbd>
+        </span>
+      </button>
+      <Button variant="ghost" size="icon-sm" class="md:hidden" data-palette-open aria-label="Search workspace">
+        <Search class="size-4" aria-hidden="true" />
+      </Button>
+      <NotificationsMenu notifications={notifications} />
+      <ThemeMenu />
+      <button
+        type="button"
+        popovertarget="topbar-user-menu"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        aria-label={`Account menu for ${user.name}`}
+        class="ml-1 rounded-full transition-opacity hover:opacity-85"
+      >
+        <Avatar user={user} size="md" />
+      </button>
+      <UserMenu id="topbar-user-menu" user={user} />
+    </div>
+  </div>
+</header>

@@ -1,0 +1,38 @@
+---
+/**
+ * Label + control + hint + error message. The error element is always
+ * rendered (empty) so client-side validation can fill it in.
+ */
+import { cn } from '@/lib/utils';
+
+interface Props {
+  label: string;
+  /** id of the control inside the slot */
+  for: string;
+  hint?: string;
+  error?: string;
+  optional?: boolean;
+  class?: string;
+}
+
+const { label, for: controlId, hint, error, optional = false, class: className } = Astro.props;
+---
+
+<div class={cn('flex flex-col gap-1.5', className)} data-field={controlId}>
+  <div class="flex items-baseline justify-between gap-2">
+    <label for={controlId} class="text-[13px] font-medium text-fg">{label}</label>
+    {optional && <span class="text-xs text-fg-subtle">Optional</span>}
+    <slot name="label-extra" />
+  </div>
+  <slot />
+  {
+    hint && (
+      <p id={`${controlId}-hint`} class="text-xs text-fg-muted">
+        {hint}
+      </p>
+    )
+  }
+  <p id={`${controlId}-error`} data-error-for={controlId} class="text-xs font-medium text-danger-ink empty:hidden">
+    {error}
+  </p>
+</div>

@@ -1,0 +1,30 @@
+---
+import { cn } from '@/lib/utils';
+import type { BadgeTone } from './types';
+
+interface Props {
+  tone?: BadgeTone;
+  class?: string;
+}
+
+const { tone = 'neutral', class: className } = Astro.props;
+
+const tones: Record<BadgeTone, string> = {
+  neutral: 'bg-subtle text-fg-muted ring-line',
+  accent: 'bg-accent-soft text-accent-ink ring-accent-line/60',
+  success: 'bg-success-soft text-success-ink ring-transparent',
+  warning: 'bg-warning-soft text-warning-ink ring-transparent',
+  danger: 'bg-danger-soft text-danger-ink ring-transparent',
+  info: 'bg-info-soft text-info-ink ring-transparent',
+};
+---
+
+<span
+  class={cn(
+    'inline-flex h-[22px] items-center gap-1 rounded-md px-1.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset [&_svg]:size-3.5',
+    tones[tone],
+    className,
+  )}
+>
+  <slot />
+</span>

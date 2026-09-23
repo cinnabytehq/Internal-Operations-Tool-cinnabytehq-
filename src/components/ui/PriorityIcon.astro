@@ -1,0 +1,40 @@
+---
+import type { Priority } from '@/types';
+import { PRIORITY_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  priority: Priority;
+  class?: string;
+}
+
+const { priority, class: className } = Astro.props;
+const level = PRIORITY_META[priority].level;
+const bars = [
+  { x: 2, height: 5 },
+  { x: 6.5, height: 8 },
+  { x: 11, height: 11 },
+];
+---
+
+<svg
+  width="14"
+  height="14"
+  viewBox="0 0 16 16"
+  class={cn('shrink-0', priority === 'high' ? 'text-danger-ink' : 'text-fg-muted', className)}
+  aria-hidden="true"
+>
+  {
+    bars.map((bar, index) => (
+      <rect
+        x={bar.x}
+        y={13.5 - bar.height}
+        width="3"
+        height={bar.height}
+        rx="0.9"
+        fill="currentColor"
+        fill-opacity={index < level ? 1 : 0.22}
+      />
+    ))
+  }
+</svg>

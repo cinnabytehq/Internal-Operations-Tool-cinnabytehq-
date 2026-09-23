@@ -1,0 +1,67 @@
+---
+/**
+ * Button (or link styled as a button).
+ *
+ * Every button can show a loading state: call `setLoading(button, true)`
+ * from src/scripts/ui.ts and the label is swapped for a spinner.
+ */
+import type { HTMLAttributes } from 'astro/types';
+import { cn } from '@/lib/utils';
+import Spinner from './Spinner.astro';
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost';
+type Size = 'xs' | 'sm' | 'md' | 'icon' | 'icon-sm' | 'icon-xs';
+
+interface Props extends Omit<HTMLAttributes<'button'>, 'class'> {
+  variant?: Variant;
+  size?: Size;
+  href?: string;
+  class?: string;
+}
+
+const { variant = 'secondary', size = 'md', href, class: className, type = 'button', ...rest } = Astro.props;
+
+const variants: Record<Variant, string> = {
+  primary: 'bg-accent text-accent-fg shadow-xs hover:bg-accent-hover',
+  secondary: 'border border-line bg-surface text-fg shadow-xs hover:border-line-strong hover:bg-subtle',
+  ghost: 'text-fg-muted hover:bg-subtle hover:text-fg',
+  danger: 'bg-danger text-white shadow-xs hover:brightness-110',
+  'danger-ghost': 'text-danger-ink hover:bg-danger-soft',
+};
+
+const sizes: Record<Size, string> = {
+  xs: 'h-7 gap-1 rounded-md px-2 text-xs',
+  sm: 'h-8 gap-1.5 rounded-md px-2.5 text-[13px] pointer-coarse:h-10',
+  md: 'h-9 gap-2 rounded-md px-3.5 text-sm pointer-coarse:h-11',
+  icon: 'size-9 rounded-md pointer-coarse:size-11',
+  'icon-sm': 'size-8 rounded-md pointer-coarse:size-10',
+  'icon-xs': 'size-7 rounded-md',
+};
+
+const classes = cn(
+  'relative inline-flex shrink-0 select-none items-center justify-center font-medium whitespace-nowrap',
+  'transition-[background-color,border-color,color,filter] duration-150',
+  'disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50',
+  '[&_svg]:shrink-0',
+  variants[variant],
+  sizes[size],
+  className,
+);
+---
+
+{
+  href ? (
+    <a href={href} class={classes} {...(rest as HTMLAttributes<'a'>)}>
+      <slot />
+    </a>
+  ) : (
+    <button type={type} class={classes} {...rest}>
+      <span data-button-label class="inline-flex items-center gap-[inherit] transition-opacity duration-150">
+        <slot />
+      </span>
+      <span data-button-spinner class="absolute inset-0 hidden items-center justify-center">
+        <Spinner />
+      </span>
+    </button>
+  )
+}

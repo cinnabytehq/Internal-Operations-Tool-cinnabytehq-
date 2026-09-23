@@ -1,0 +1,48 @@
+---
+/**
+ * Link-based tabs for filtered views (?view=…). Links keep the state in the
+ * URL, so filtered views can be shared and survive reloads.
+ */
+import { cn } from '@/lib/utils';
+import type { TabItem } from './types';
+
+interface Props {
+  items: TabItem[];
+  label: string;
+  class?: string;
+}
+
+const { items, label, class: className } = Astro.props;
+---
+
+<nav aria-label={label} class={cn('-mx-1 overflow-x-auto no-scrollbar', className)}>
+  <ul class="flex min-w-max items-center gap-0.5 px-1">
+    {
+      items.map((item) => (
+        <li>
+          <a
+            href={item.href}
+            aria-current={item.active ? 'page' : undefined}
+            class={cn(
+              'group relative inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium transition-colors duration-150 pointer-coarse:h-10',
+              item.active ? 'bg-surface text-fg shadow-xs ring-1 ring-line' : 'text-fg-muted hover:bg-subtle hover:text-fg',
+            )}
+          >
+            {item.label}
+            {item.count !== undefined && (
+              <span
+                data-count={item.countKey}
+                class={cn(
+                  'tabular min-w-5 rounded px-1 text-center text-[11px] leading-[18px]',
+                  item.active ? 'bg-accent-soft text-accent-ink' : 'bg-muted text-fg-muted',
+                )}
+              >
+                {item.count}
+              </span>
+            )}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

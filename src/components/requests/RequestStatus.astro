@@ -1,0 +1,37 @@
+---
+/**
+ * Request status: segmented pipeline glyph + label. Shape and text carry
+ * the meaning; the ordinal green ramp reinforces it.
+ */
+import type { RequestStatus as Status } from '@/types';
+import PipelineIcon from '@/components/ui/PipelineIcon.astro';
+import { REQUEST_STATUS_META } from '@/lib/meta';
+import { cn } from '@/lib/utils';
+
+interface Props {
+  status: Status;
+  /** "chip" adds a bordered container (headers, menus triggers) */
+  variant?: 'plain' | 'chip';
+  class?: string;
+}
+
+const { status, variant = 'plain', class: className } = Astro.props;
+
+const colors: Record<Status, string> = {
+  new: 'text-status-new',
+  in_review: 'text-status-review',
+  in_progress: 'text-status-progress',
+  completed: 'text-status-done',
+};
+---
+
+<span
+  class={cn(
+    'inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap text-fg',
+    variant === 'chip' && 'h-7 rounded-md border border-line bg-surface px-2 shadow-xs',
+    className,
+  )}
+>
+  <PipelineIcon step={REQUEST_STATUS_META[status].step} total={4} class={colors[status]} />
+  {REQUEST_STATUS_META[status].label}
+</span>
